@@ -50,9 +50,12 @@
 ------------------------------------ 
 
 - اجرای اسکریپت دانلود
+ <div align="left">
+  
 ```
 sudo apt update && sudo apt install -y curl && curl -fsSL -o download.sh https://raw.githubusercontent.com/Azumi67/Wireguard-panel/refs/heads/main/download.sh && bash download.sh
 ```
+
 <p align="right">
   <img src="https://github.com/user-attachments/assets/8167f586-601c-45b1-ba15-3173d4a5e6f7" alt="Image" />
 </p>
@@ -234,3 +237,46 @@ WantedBy=multi-user.target
 
   </details>
 </div>  
+
+---------------
+**اسکرین شات**
+<details>
+  <summary align="right">پنل</summary>
+  
+  <p align="right">
+    <img src="https://github.com/user-attachments/assets/cb754472-6a4a-4511-acde-b037737b600f" alt="menu screen" />
+  </p>
+</details>
+<details>
+  <summary align="right">ساخت کاربر</summary>
+  
+  <p align="right">
+    <img src="https://github.com/user-attachments/assets/d8b799b5-8825-4079-bfbb-e68c9fa1c7c5" alt="menu screen" />
+  </p>
+</details>
+<details>
+  <summary align="right">باکس کاربر</summary>
+  
+  <p align="right">
+    <img src="https://github.com/user-attachments/assets/ec328904-6e78-4536-a08b-600f3a0c6a64" alt="menu screen" />
+  </p>
+</details>
+<details>
+  <summary align="right">بات</summary>
+  
+  <p align="right">
+    <img src="https://github.com/user-attachments/assets/39c96321-2148-4ca8-88fe-f995b9525487" alt="menu screen" />
+  </p>
+</details>
+
+-----------------------------------------------------
+
+![R (a2)](https://github.com/Azumi67/PrivateIP-Tunnel/assets/119934376/716fd45e-635c-4796-b8cf-856024e5b2b2)
+**اسکریپت دانلود**
+----------------
+
+
+```
+sudo apt update && sudo apt install -y curl && curl -fsSL -o download.sh https://raw.githubusercontent.com/Azumi67/Wireguard-panel/refs/heads/main/download.sh && bash download.sh
+
+```
