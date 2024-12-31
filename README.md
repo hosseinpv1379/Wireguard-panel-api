@@ -52,11 +52,11 @@
 ------------------------------------ 
 
 - اجرای اسکریپت دانلود
- <div align="left">
-  
+ 
 ```
 sudo apt update && sudo apt install -y curl && curl -fsSL -o download.sh https://raw.githubusercontent.com/Azumi67/Wireguard-panel/refs/heads/main/download.sh && bash download.sh
 ```
+
 
 <p align="right">
   <img src="https://github.com/user-attachments/assets/3c70376b-330b-4ffe-b8f2-60ed18f80a30" alt="Image" />
@@ -64,9 +64,11 @@ sudo apt update && sudo apt install -y curl && curl -fsSL -o download.sh https:/
 
 
 - نخست گزینه ها را به ترتیب نصب میکنید تا به گزینه 4 برسید
+
 <p align="right">
   <img src="https://github.com/user-attachments/assets/9a7379c1-f19d-491d-847d-de5342f2c218" alt="Image" />
 </p>
+
 
 - نخست پورت پنل خود را وارد میکنید و سایر موارد را در صورت منابع بهتر در صورت نیاز تغییر میدهید یا به صورت دیفالت به قسمت بعد میروید
 - کلید رمز عبور برنامه را وارد نمایید
@@ -79,6 +81,7 @@ sudo apt update && sudo apt install -y curl && curl -fsSL -o download.sh https:/
   <img src="https://github.com/user-attachments/assets/baab97fa-d5d9-4cba-a5be-6264b7c6bb59" alt="Image" />
 </p>
 
+
 - قسمت بعدی ست کردن کانفیگ وایرگارد میباشد
 - همیشه با wg0 کانفیگ را اغاز کنید و سپس wg1 و wg2
 - ایپی پرایوت ورژن 4 باشد و نیازی به ایپی 6 نمیباشد
@@ -87,6 +90,7 @@ sudo apt update && sudo apt install -y curl && curl -fsSL -o download.sh https:/
 <p align="right">
   <img src="https://github.com/user-attachments/assets/c4ce3873-ebd3-435e-8a66-d66a9cf9f260" alt="Image" />
 </p>
+
 
 - این مورد برای اموزش است و تنها پس از نصب اسکریپت و داخل پنل انجام میشود. دقت نمایید که برای استفاده از ربات به زبان انگلیسی، نخست زبان پنل را انگلیسی کنید و سپس ربات را نصب نمایید. فارسی هم به همین صورت میباشد
 - برای نصب بات از داخل پنل میتوانید انجام دهید. همان طور که در اسکرین شات مشاهده میکنید توکن باتی که از @BotFather دریافت کردید قرار دهید
