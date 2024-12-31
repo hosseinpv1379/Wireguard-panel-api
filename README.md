@@ -59,9 +59,10 @@ sudo apt update && sudo apt install -y curl && curl -fsSL -o download.sh https:/
 ```
 
 <p align="right">
-  <img src="https://github.com/user-attachments/assets/8167f586-601c-45b1-ba15-3173d4a5e6f7" alt="Image" />
+  <img src="https://github.com/user-attachments/assets/3c70376b-330b-4ffe-b8f2-60ed18f80a30" alt="Image" />
 </p>
-    
+
+
 - نخست گزینه ها را به ترتیب نصب میکنید تا به گزینه 4 برسید
 <p align="right">
   <img src="https://github.com/user-attachments/assets/9a7379c1-f19d-491d-847d-de5342f2c218" alt="Image" />
