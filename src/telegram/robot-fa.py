@@ -1146,8 +1146,8 @@ async def generate_template_with_qr(update, context):
         box_xy = (20, 360, 420, 480)
         draw_rounded_rectangle(draw, box_xy, radius=20, fill="gray", outline="white", outline_width=2)
 
-        qr_image = qr_image.resize((80, 80))
-        qr_x, qr_y = 330, 370
+        qr_image = qr_image.resize((90, 90))
+        qr_x, qr_y = 30, 374
         template_image.paste(qr_image, (qr_x, qr_y))
 
         font_path = "static/fonts/Poppins-Regular.ttf"
@@ -1156,7 +1156,7 @@ async def generate_template_with_qr(update, context):
         except IOError:
             font = ImageFont.load_default()
 
-        text_x, text_y = 240, 375 
+        text_x, text_y = 130, 375 
         line_height = 20
         draw.text((text_x, text_y), f"Peer Name: {peer_name}", font=font, fill="white")
         draw.text((text_x, text_y + line_height), f"Peer IP: {peer_ip}", font=font, fill="white")
