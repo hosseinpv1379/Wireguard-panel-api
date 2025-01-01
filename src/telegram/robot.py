@@ -341,18 +341,23 @@ async def start(update: Update = None, context: CallbackContext = None, chat_id:
     caption_text = (
         f"<b>Welcome to the Wireguard Manager Bot</b>\n\n"
         f"{status_message}\n"
-
         f"📢 Notifications: {notification_status}\n\n"
         f"<i>Please choose an option below:</i>"
     )
 
     keyboard = [
-        [InlineKeyboardButton("🔔 Enable Notifications", callback_data="enable_notifications")],
-        [InlineKeyboardButton("🔕 Disable Notifications", callback_data="disable_notifications")],
-        [InlineKeyboardButton("👥 Peers", callback_data="peers_menu")],
-        [InlineKeyboardButton("📊 Metrics", callback_data="metrics")],
-        [InlineKeyboardButton("📦 Backups", callback_data="backups_menu")],
-        [InlineKeyboardButton("⚙️ Settings", callback_data="settings_menu")],
+        [
+            InlineKeyboardButton("🔔 Enable Notifications", callback_data="enable_notifications"),
+            InlineKeyboardButton("🔕 Disable Notifications", callback_data="disable_notifications"),
+        ],
+        [
+            InlineKeyboardButton("👥 Peers", callback_data="peers_menu"),
+            InlineKeyboardButton("📊 Metrics", callback_data="metrics"),
+        ],
+        [
+            InlineKeyboardButton("📦 Backups", callback_data="backups_menu"),
+            InlineKeyboardButton("⚙️ Settings", callback_data="settings_menu"),
+        ],
         [InlineKeyboardButton("📝 Logs", callback_data="view_logs")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -380,6 +385,7 @@ async def start(update: Update = None, context: CallbackContext = None, chat_id:
             chat_id=chat_id,
             text="❌ Unable to send the image.",
         )
+
 
 
 async def view_logs(update: Update, context: CallbackContext):
@@ -919,19 +925,29 @@ async def peers_menu(update: Update, context: CallbackContext):
         "🎛 **Peer Management Menu**\n\n"
         "Choose an option to manage your Wireguard peers:"
     )
+
     keyboard = [
-        [InlineKeyboardButton("🆕 Create Peer", callback_data="create_peer")],
-        [InlineKeyboardButton("✏️ Edit Peer", callback_data="edit_peer")],
-        [InlineKeyboardButton("❌ Delete Peer", callback_data="peer_delete")],
-        [InlineKeyboardButton("🔄 Reset Traffic/Expiry", callback_data="reset_peer")],
-        [InlineKeyboardButton("🔍 Peer Status", callback_data="peer_status")],
-        [InlineKeyboardButton("🔒 Block/Unblock Peer", callback_data="block_unblock_peer")],
-        [InlineKeyboardButton("⬇️ Download / QR Code", callback_data="download_qr_menu")],
-        [InlineKeyboardButton("📄 View Template", callback_data="view_template")],
+        [
+            InlineKeyboardButton("🆕 Create Peer", callback_data="create_peer"),
+            InlineKeyboardButton("✏️ Edit Peer", callback_data="edit_peer"),
+        ],
+        [
+            InlineKeyboardButton("❌ Delete Peer", callback_data="peer_delete"),
+            InlineKeyboardButton("🔄 Reset Traffic/Expiry", callback_data="reset_peer"),
+        ],
+        [
+            InlineKeyboardButton("🔍 Peer Status", callback_data="peer_status"),
+            InlineKeyboardButton("🔒 Block/Unblock Peer", callback_data="block_unblock_peer"),
+        ],
+        [
+            InlineKeyboardButton("⬇️ Download / QR Code", callback_data="download_qr_menu"),
+            InlineKeyboardButton("📄 View Template", callback_data="view_template"),
+        ],
         [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await context.bot.send_message(chat_id=chat_id, text=message, reply_markup=reply_markup, parse_mode="Markdown")
+
 
 
 async def view_template_menu(update: Update, context: CallbackContext):
@@ -1131,8 +1147,8 @@ async def generate_template_with_qr(update, context):
         box_xy = (20, 360, 420, 480)
         draw_rounded_rectangle(draw, box_xy, radius=20, fill="gray", outline="white", outline_width=2)
 
-        qr_image = qr_image.resize((90, 90))
-        qr_x, qr_y = 30, 374
+        qr_image = qr_image.resize((80, 80))
+        qr_x, qr_y = 330, 370
         template_image.paste(qr_image, (qr_x, qr_y))
 
         font_path = "static/fonts/Poppins-Regular.ttf"
@@ -1141,7 +1157,7 @@ async def generate_template_with_qr(update, context):
         except IOError:
             font = ImageFont.load_default()
 
-        text_x, text_y = 130, 375 
+        text_x, text_y = 240, 375  
         line_height = 20
         draw.text((text_x, text_y), f"Peer Name: {peer_name}", font=font, fill="white")
         draw.text((text_x, text_y + line_height), f"Peer IP: {peer_ip}", font=font, fill="white")
