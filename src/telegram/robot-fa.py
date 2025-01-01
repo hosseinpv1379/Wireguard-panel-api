@@ -892,27 +892,36 @@ async def stat_metrics(update: Update, context: CallbackContext):
         await context.bot.send_message(chat_id, text=f"❌ خطا در دریافت آمار سیستم: {response['error']}")
         return
 
-    cpu = response.get("cpu", "نامشخص")
-    ram = response.get("ram", "نامشخص")
-    disk = response.get("disk", {"used": "نامشخص", "total": "نامشخص"})
-    uptime = response.get("uptime", "نامشخص")
+    cpu = response.get("cpu", "Unknown")
+    ram = response.get("ram", "Unknown")
+    disk = response.get("disk", {"used": "Unknown", "total": "Unknown"})
+    uptime = response.get("uptime", "Unknown")
 
-    metrics_labels = ["استفاده CPU", "استفاده RAM", "استفاده دیسک"]
+    disk_used = float(disk["used"].replace("GB", "").strip()) if "used" in disk else 0
+    disk_total = float(disk["total"].replace("GB", "").strip()) if "total" in disk else 1
+    disk_percentage = (disk_used / disk_total) * 100 if disk_total > 0 else 0
+
+    metrics_labels = ["CPU Usage", "RAM Usage", "Disk Usage"]
     metrics_values = [
         float(cpu.replace("%", "")) if "%" in cpu else 0,
         float(ram.replace("%", "")) if "%" in ram else 0,
-        float(disk["used"].replace("GB", "").strip()) if "used" in disk else 0,
+        disk_percentage,
     ]
+
+    plt.rcParams["axes.unicode_minus"] = False
+    plt.rcParams["font.family"] = "DejaVu Sans"  
 
     plt.figure(figsize=(6, 4))
     plt.bar(metrics_labels, metrics_values, color=["blue", "green", "orange"])
-    plt.title("آمار سیستم")
-    plt.ylabel("درصد / گیگابایت")
+    plt.title("System Metrics", fontsize=14)
+    plt.ylabel("Percentage / GB", fontsize=12)
     plt.ylim(0, 100)
-    plt.grid(axis="y")
+    plt.xticks(fontsize=10)
+    plt.yticks(fontsize=10)
+    plt.grid(axis="y", linestyle="--", linewidth=0.5)
 
     buffer = BytesIO()
-    plt.savefig(buffer, format="png")
+    plt.savefig(buffer, format="png", bbox_inches="tight", dpi=150)
     buffer.seek(0)
 
     keyboard = [[InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu")]]
