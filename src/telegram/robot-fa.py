@@ -320,36 +320,35 @@ def flask_status():
     
 async def start(update: Update = None, context: CallbackContext = None, chat_id: int = None):
     global current_status, admin_chat_id
-    if chat_id is None:
-        chat_id = update.effective_chat.id if update else None
+    chat_id = chat_id or (update.effective_chat.id if update else None)
     flask_status()
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
     image_path = os.path.join(script_dir, "static/images/telegram.jpg")
 
     status_icon = "🚦"
-    status_message = (
-        f"{status_icon} وضعیت برنامه: {'🟢 فعال' if current_status['status'] == 'running' else '🔴 غیرفعال'}"
-    )
+    status_message = f"{status_icon} وضعیت برنامه: {'🟢 فعال' if current_status['status'] == 'running' else '🔴 غیرفعال'}"
     notification_status = "✅ فعال" if admin_chat_id else "❌ غیرفعال"
-
-    padding_spaces = '\u00A0' * 10  
-
 
     caption_text = (
         f"<b>به ربات مدیریت وایرگارد خوش آمدید</b>\n\n"
-        f"{status_message}\n"
-        f"📢 اعلان‌ها: {notification_status}\n\n"
+        f"{status_message}\n📢 اعلان‌ها: {notification_status}\n\n"
         f"<i>لطفاً یکی از گزینه‌های زیر را انتخاب کنید:</i>"
     )
 
     keyboard = [
-        [InlineKeyboardButton("🔔 فعال کردن اعلان‌ها", callback_data="enable_notifications")],
-        [InlineKeyboardButton("🔕 غیرفعال کردن اعلان‌ها", callback_data="disable_notifications")],
-        [InlineKeyboardButton("👥 کاربران", callback_data="peers_menu")],
-        [InlineKeyboardButton("📊 آمار", callback_data="metrics")],
-        [InlineKeyboardButton("📦 پشتیبان‌ها", callback_data="backups_menu")],
-        [InlineKeyboardButton("⚙️ تنظیمات", callback_data="settings_menu")],
+        [
+            InlineKeyboardButton("🔕 غیرفعال کردن اعلان‌ها", callback_data="disable_notifications"),
+            InlineKeyboardButton("🔔 فعال کردن اعلان‌ها", callback_data="enable_notifications"),
+        ],
+        [
+            InlineKeyboardButton("📊 آمار", callback_data="metrics"),
+            InlineKeyboardButton("👥 کاربران", callback_data="peers_menu"),
+        ],
+        [
+            InlineKeyboardButton("⚙️ تنظیمات", callback_data="settings_menu"),
+            InlineKeyboardButton("📦 پشتیبان‌ها", callback_data="backups_menu"),
+        ],
         [InlineKeyboardButton("📝 گزارشات", callback_data="view_logs")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -364,19 +363,13 @@ async def start(update: Update = None, context: CallbackContext = None, chat_id:
                     parse_mode="HTML",
                     reply_markup=reply_markup,
                 )
-                print("تصویر تلگرام با موفقیت ارسال شد.")
         else:
-            print(f"تصویر در مسیر {image_path} یافت نشد.")
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text="❌ بارگذاری تصویر امکان‌پذیر نیست.",
-            )
+            await context.bot.send_message(chat_id, text="❌ بارگذاری تصویر امکان‌پذیر نیست.")
     except Exception as e:
-        print(f"ارسال تصویر با خطا مواجه شد: {e}")
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="❌ ارسال تصویر امکان‌پذیر نیست.",
-        )
+        print(f"Error sending photo: {e}")
+        await context.bot.send_message(chat_id, text="❌ ارسال تصویر امکان‌پذیر نیست.")
+
+
 
 async def view_logs(update: Update, context: CallbackContext):
     query = update.callback_query
@@ -946,19 +939,31 @@ async def peers_menu(update: Update, context: CallbackContext):
         "🎛 **منوی مدیریت کاربران**\n\n"
         "یکی از گزینه‌ها را برای مدیریت کاربران وایرگارد انتخاب کنید:"
     )
+
     keyboard = [
-        [InlineKeyboardButton("🆕 ایجاد کاربر جدید", callback_data="create_peer")],
-        [InlineKeyboardButton("✏️ ویرایش کاربر", callback_data="edit_peer")],
-        [InlineKeyboardButton("❌ حذف کاربر", callback_data="delete_peer")],
-        [InlineKeyboardButton("🔄 ریست ترافیک/انقضا", callback_data="reset_peer")],
-        [InlineKeyboardButton("🔍 وضعیت کاربر", callback_data="peer_status")],
-        [InlineKeyboardButton("🔒 مسدود کردن/باز کردن کاربر", callback_data="block_unblock_peer")],
-        [InlineKeyboardButton("⬇️ دانلود / کد QR", callback_data="download_qr_menu")],
-        [InlineKeyboardButton("📄 مشاهده قالب", callback_data="view_template")],
+        [
+            InlineKeyboardButton("✏️ ویرایش کاربر", callback_data="edit_peer"),
+            InlineKeyboardButton("🆕 ایجاد کاربر جدید", callback_data="create_peer"),
+        ],
+        [
+            InlineKeyboardButton("🔄 ریست ترافیک/انقضا", callback_data="reset_peer"),
+            InlineKeyboardButton("❌ حذف کاربر", callback_data="delete_peer"),
+        ],
+        [
+            InlineKeyboardButton("🔒 مسدود/باز کردن کاربر", callback_data="block_unblock_peer"),
+            InlineKeyboardButton("🔍 وضعیت کاربر", callback_data="peer_status"),
+        ],
+        [
+            InlineKeyboardButton("📄 مشاهده قالب", callback_data="view_template"),
+            InlineKeyboardButton("⬇️ دانلود / کد QR", callback_data="download_qr_menu"),
+        ],
         [InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu")],
     ]
+
     reply_markup = InlineKeyboardMarkup(keyboard)
     await context.bot.send_message(chat_id=chat_id, text=message, reply_markup=reply_markup, parse_mode="Markdown")
+
+
 
 
 async def download_qr_menu(update: Update, context: CallbackContext):
