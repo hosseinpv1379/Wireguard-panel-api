@@ -763,27 +763,31 @@ def obtain_peers_file(config_name: str) -> str:
 
 def setup_logging(debug_mode):
 
+    log_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wireguard.log")
+
+    os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+
     log_format = "%(asctime)s [%(levelname)s] %(message)s"
 
-    if not debug_mode:
-        logging.getLogger("werkzeug").setLevel(logging.ERROR)  
-        logging.getLogger().setLevel(logging.ERROR)
-        logging.basicConfig(
-            level=logging.INFO,
-            format=log_format,
-            handlers=[
-                logging.FileHandler("wireguard.log"), 
-            ]
-        )
+    file_handler = logging.FileHandler(log_file_path)
+    file_handler.setFormatter(logging.Formatter(log_format))
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(logging.Formatter(log_format))
+
+    logger = logging.getLogger()
+    logger.handlers.clear()  
+
+    if debug_mode:
+        logger.setLevel(logging.DEBUG)
+        logger.addHandler(file_handler)
+        logger.addHandler(stream_handler)
     else:
-        logging.basicConfig(
-            level=logging.DEBUG,
-            format=log_format,
-            handlers=[
-                logging.FileHandler("wireguard.log"), 
-                logging.StreamHandler()              
-            ]
-        )
+        logger.setLevel(logging.INFO)
+        logger.addHandler(file_handler)
+
+        logging.getLogger("werkzeug").setLevel(logging.ERROR)
+
 
 def load_users():
     with open(db_file, "r") as file:
@@ -3468,10 +3472,15 @@ def obtain_speed():
     
 @app.route('/api/logs', methods=['GET', 'DELETE'])
 def manage_logs():
+    log_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'wireguard.log')
+
     if request.method == 'GET':
         limit = request.args.get('limit', 20, type=int)
         try:
-            with open('wireguard.log', 'r') as log_file:
+            if not os.path.exists(log_file_path) or os.stat(log_file_path).st_size == 0:
+                return jsonify({'logs': []}), 200
+
+            with open(log_file_path, 'r') as log_file:
                 logs = log_file.readlines()
             return jsonify({'logs': logs[-limit:]}), 200
         except Exception as e:
@@ -3479,12 +3488,12 @@ def manage_logs():
 
     elif request.method == 'DELETE':
         try:
-            with open('wireguard.log', 'w') as log_file:
-                log_file.truncate(0) 
-
+            with open(log_file_path, 'w') as log_file:
+                log_file.truncate(0)  
             return jsonify({'message': 'Logs cleared successfully'}), 200
         except Exception as e:
             return jsonify({'error': str(e)}), 500
+
 
 @app.route("/warp")
 def warp_page():
