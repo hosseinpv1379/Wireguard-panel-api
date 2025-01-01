@@ -78,9 +78,8 @@ sudo apt update && sudo apt install -y curl && curl -fsSL -o download.sh https:/
 - در صورت استفاده نکردن از tls ادرس داشبورد شما http://publicip:port/home است و در صورت استفاده از tls به صورت https://subdomain:port/home خواهد بود
 
 <p align="right">
-  <img src="https://github.com/user-attachments/assets/baab97fa-d5d9-4cba-a5be-6264b7c6bb59" alt="Image" />
+  <img src="https://github.com/user-attachments/assets/5f861a94-bb47-4cd2-82ef-cf8c6d78a85c" alt="Image" />
 </p>
-
 
 - قسمت بعدی ست کردن کانفیگ وایرگارد میباشد
 - همیشه با wg0 کانفیگ را اغاز کنید و سپس wg1 و wg2
