@@ -747,47 +747,73 @@ document.getElementById("editPeerForm").addEventListener("submit", async (event)
     }
 });
 
-let isSearching = false;
+let isFiltering = false; 
+let isSearching = false; 
 
 document.getElementById("searchInput").addEventListener("input", async () => {
-    const searchValue = document.getElementById("searchInput").value.trim().toLowerCase();
-    const peerContainer = document.getElementById("peerContainer");
+    const searchValue = document.getElementById("searchInput").value.trim().toLowerCase(); 
+    const peerContainer = document.getElementById("peerContainer"); 
 
     if (searchValue === "") {
         isSearching = false;
-        fetchPeers(configSelect.value);
+        if (!isFiltering) {
+            fetchPeers(configSelect.value); 
+        }
         return;
     }
 
-    isSearching = true;
+    isSearching = true; 
 
     try {
-        const response = await fetch(`/api/search-peers?query=${encodeURIComponent(searchValue)}`);
+        const response = await fetch(`/api/search-peers?query=${encodeURIComponent(searchValue)}`); 
         const data = await response.json();
 
         if (!response.ok) {
-            showAlert(data.error || "امکان جستجوی کاربر نیست.");
+            showAlert(data.error || "جستجوی کاربران امکان‌پذیر نیست.");
             return;
         }
 
-        renderPeers(data.peers, configSelect.value);
+        renderPeers(data.peers, configSelect.value); 
     } catch (error) {
-        console.error("searching peers error:", error);
-        showAlert("error occurred while searching.");
+        console.error("خطا در جستجوی کاربران:", error);
+        showAlert("در هنگام جستجو خطایی رخ داد.");
     }
 });
 
 document.getElementById("filterSelect").addEventListener("change", () => {
-    const filterValue = document.getElementById("filterSelect").value;
+    const filterValue = document.getElementById("filterSelect").value; 
     if (!filterValue) {
-        renderPeers(peersData); 
+        isFiltering = false;
+        fetchPeers(configSelect.value); 
         return;
     }
-    const filteredPeers = peersData.filter(peer =>
-        filterValue === "active" ? !peer.blocked : peer.blocked
-    );
-    renderPeers(filteredPeers);
+
+    isFiltering = true; 
+    applyFilter(); 
 });
+
+function applyFilter() {
+    const filterValue = document.getElementById("filterSelect").value; 
+    const query = document.getElementById("searchInput").value.trim(); 
+
+    const url = `/api/search-peers?query=${encodeURIComponent(query)}&filter=${encodeURIComponent(filterValue)}`; 
+
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                console.error("خطا در دریافت کاربران:", data.error);
+                return;
+            }
+
+            renderPeers(data.peers); 
+        })
+        .catch(error => {
+            console.error("خطا در اعمال فیلتر:", error);
+        });
+}
+
+window.applyFilter = applyFilter;
 async function toggleBlock(peerName, currentState) {
     try {
         const response = await fetch(`/api/toggle-block`, {
@@ -1145,12 +1171,12 @@ setInterval(fetchMetrics, 10000);
 setInterval(fetchSpeedData, 5000);
 setInterval(fetchStatuses, 10000);
 setInterval(() => {
-if (isSearching) {
-    console.log("Skipping peer refresh due to active search going on.");
-    return; 
-}
+    if (isSearching || isFiltering) {
+        console.log("Skipping peer refresh due to active search or filter.");
+        return; 
+    }
 
-console.log("Refreshing peer list..");
-fetchPeers(configSelect.value); 
-}, 10000); 
+    console.log("Refreshing peer list..");
+    fetchPeers(configSelect.value);
+}, 10000);
 });
