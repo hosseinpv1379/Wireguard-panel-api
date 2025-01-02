@@ -764,6 +764,7 @@ create_config() {
     echo -e "\033[92m(\033[91mO,O\033[92m)\033[0m"
     echo -e "\033[92m(   ) \033[92mFlask Setup\033[0m"
     echo -e '\033[92m "-"\033[93m══════════════════════════════════\033[0m'
+    
     echo -e "${INFO}[INFO] Creating or updating Flask setup...${NC}"
     echo -e '\033[93m══════════════════════════════════\033[0m'
 
@@ -775,7 +776,7 @@ create_config() {
             echo -e "${CYAN}[INFO] Flask Port: ${GREEN}$FLASK_PORT${NC}"
             break
         else
-            echo -e "${RED}[ERROR] Wrong port. Please enter a valid port number (1-65535).${NC}"
+            echo -e "${RED}[ERROR] Invalid port. Please enter a valid number between 1 and 65535.${NC}"
         fi
     done
 
@@ -783,17 +784,17 @@ create_config() {
     read -e FLASK_DEBUG
     FLASK_DEBUG=${FLASK_DEBUG:-no}
     FLASK_DEBUG=$(echo "$FLASK_DEBUG" | grep -iq "^y" && echo "true" || echo "false")
-    echo -e "${CYAN}[INFO] Flask Debug Mode: ${GREEN}$FLASK_DEBUG${NC}"
+    echo -e "\n${CYAN}[INFO] Flask Debug Mode: ${GREEN}$FLASK_DEBUG${NC}"
 
     while true; do
         echo -ne "${YELLOW}Enter the number of ${GREEN}Gunicorn workers ${YELLOW}[default: 2]: ${NC}"
         read -e GUNICORN_WORKERS
         GUNICORN_WORKERS=${GUNICORN_WORKERS:-2}
         if [[ "$GUNICORN_WORKERS" =~ ^[0-9]+$ ]]; then
-            echo -e "${CYAN}[INFO] Gunicorn Workers: ${GREEN}$GUNICORN_WORKERS${NC}"
+            echo -e "\n${CYAN}[INFO] Gunicorn Workers: ${GREEN}$GUNICORN_WORKERS${NC}"
             break
         else
-            echo -e "${RED}[ERROR] Wrong number of workers. Please enter a valid number.${NC}"
+            echo -e "\n${RED}[ERROR] Invalid number. Please enter a valid number.${NC}"
         fi
     done
 
@@ -802,10 +803,10 @@ create_config() {
         read -e GUNICORN_THREADS
         GUNICORN_THREADS=${GUNICORN_THREADS:-1}
         if [[ "$GUNICORN_THREADS" =~ ^[0-9]+$ ]]; then
-            echo -e "${CYAN}[INFO] Gunicorn Threads: ${GREEN}$GUNICORN_THREADS${NC}"
+            echo -e "\n${CYAN}[INFO] Gunicorn Threads: ${GREEN}$GUNICORN_THREADS${NC}"
             break
         else
-            echo -e "${RED}[ERROR] Wrong number of threads. Please enter a valid number.${NC}"
+            echo -e "\n${RED}[ERROR] Invalid number. Please enter a valid number.${NC}"
         fi
     done
 
@@ -814,10 +815,10 @@ create_config() {
         read -e GUNICORN_TIMEOUT
         GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-120}
         if [[ "$GUNICORN_TIMEOUT" =~ ^[0-9]+$ ]]; then
-            echo -e "${CYAN}[INFO] Gunicorn Timeout: ${GREEN}$GUNICORN_TIMEOUT${NC}"
+            echo -e "\n${CYAN}[INFO] Gunicorn Timeout: ${GREEN}$GUNICORN_TIMEOUT${NC}"
             break
         else
-            echo -e "${RED}[ERROR] Wrong timeout. Please enter a valid number.${NC}"
+            echo -e "\n${RED}[ERROR] Invalid timeout. Please enter a valid number.${NC}"
         fi
     done
 
@@ -826,10 +827,10 @@ create_config() {
         read -e GUNICORN_LOGLEVEL
         GUNICORN_LOGLEVEL=${GUNICORN_LOGLEVEL:-info}
         if [[ "$GUNICORN_LOGLEVEL" =~ ^(debug|info|warning|error|critical)$ ]]; then
-            echo -e "${CYAN}[INFO] Gunicorn Log Level: ${GREEN}$GUNICORN_LOGLEVEL${NC}"
+            echo -e "\n${CYAN}[INFO] Gunicorn Log Level: ${GREEN}$GUNICORN_LOGLEVEL${NC}"
             break
         else
-            echo -e "${RED}[ERROR] Wrong log level. Valid options: debug, info, warning, error, critical.${NC}"
+            echo -e "\n${RED}[ERROR] Invalid log level. Valid options: debug, info, warning, error, critical.${NC}"
         fi
     done
 
@@ -837,10 +838,10 @@ create_config() {
         echo -ne "${YELLOW}Enter the ${GREEN}Flask ${YELLOW}secret key ${NC}(used for session management): ${NC}"
         read -e FLASK_SECRET_KEY
         if [ -n "$FLASK_SECRET_KEY" ]; then
-            echo -e "${CYAN}[INFO] Flask Secret Key: ${GREEN}$FLASK_SECRET_KEY${NC}"
+            echo -e "\n${CYAN}[INFO] Flask Secret Key: ${GREEN}$FLASK_SECRET_KEY${NC}"
             break
         else
-            echo -e "${RED}[ERROR] Secret key cannot be empty. Please enter a valid value.${NC}"
+            echo -e "\n${RED}[ERROR] Secret key cannot be empty. Please enter a valid value.${NC}"
         fi
     done
 
@@ -878,6 +879,7 @@ EOL
 
     echo -e "${CYAN}Press Enter to continue...${NC}" && read
 }
+
 
 
 wireguard_panel() {
@@ -1024,7 +1026,7 @@ sysctl_menu() {
 
 while true; do
     display_menu
-    echo -e "${NC}choose an option [1-9]:${NC} \c"
+    echo -e "${NC}choose an option [1-8]:${NC} \c"
     read -r USER_CHOICE
     select_stuff "$USER_CHOICE"
 done
