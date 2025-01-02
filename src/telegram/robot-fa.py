@@ -2365,16 +2365,25 @@ async def obtain_peer_status(update: Update, context: CallbackContext):
 
         messages = []
         for peer in matched_peers:
+            remaining_minutes = peer.get("remaining_time", 0)
+            if remaining_minutes > 0:
+                days = remaining_minutes // 1440
+                hours = (remaining_minutes % 1440) // 60
+                minutes = remaining_minutes % 60
+                remaining_human = f"{days} روز, {hours} ساعت, {minutes} دقیقه"
+            else:
+                remaining_human = "منقضی شده"
+
             peer_details = (
                 f"🎛 **اطلاعات کاربر**\n\n"
                 f"📛 **نام کاربر:** `{peer['peer_name']}`\n"
                 f"🌐 **آی‌پی کاربر:** `{peer['peer_ip']}`\n"
                 f"🔑 **کلید عمومی:** `{peer['public_key']}`\n"
                 f"📊 **محدودیت حجم:** `{peer['limit']}`\n"
+                f"📡 **حجم باقی مانده:** `{peer['remaining_human']}`\n"
                 f"🕒 **زمان انقضا:** {peer['expiry_time']['days']} روز, "
                 f"{peer['expiry_time']['hours']} ساعت, {peer['expiry_time']['minutes']} دقیقه\n"
-                f"📡 **آدرس:** `{peer['dns']}`\n"
-                f"⏳ **حجم باقی مانده:** `{peer['remaining_human']}`\n"
+                f"⏳ **زمان باقی مانده:** {remaining_human}\n"
                 f"⚡ **وضعیت:** {'🟢 فعال' if not peer['expiry_blocked'] else '🔴 بلاک شده'}\n"
             )
             messages.append(peer_details)
@@ -2392,8 +2401,6 @@ async def obtain_peer_status(update: Update, context: CallbackContext):
         print(f"خطا در وضعیت کاربر: {e}")
         await update.message.reply_text("❌ خطایی در دریافت وضعیت کاربر رخ داد.")
         return INPUT_PEER_NAME_STATUS
-
-
 
 
 async def mnu_back(update: Update, context: CallbackContext):
