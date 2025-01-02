@@ -287,7 +287,7 @@ sudo apt update && sudo apt install -y curl && curl -fsSL -o download.sh https:/
 
 ```
 
-- باز فرخوانی اسکریپت
+- باز فراخوانی اسکریپت
 ```
 wire
 ```
