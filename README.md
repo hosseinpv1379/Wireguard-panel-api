@@ -286,3 +286,8 @@ WantedBy=multi-user.target
 sudo apt update && sudo apt install -y curl && curl -fsSL -o download.sh https://raw.githubusercontent.com/Azumi67/Wireguard-panel/refs/heads/main/download.sh && bash download.sh
 
 ```
+
+- باز فرخوانی اسکریپت
+```
+wire
+```
