@@ -2307,15 +2307,14 @@ async def obtain_peer_status(update: Update, context: CallbackContext):
     selected_interface = context.user_data["selected_status_interface"]
 
     if not peer_name:
-        await update.message.reply_text("❌ Peer name cannot be empty. Enter a valid peer name:")
+        await update.message.reply_text("❌ Peer name cannot be empty. Please enter a valid name:")
         return INPUT_PEER_NAME_STATUS
 
     try:
-       
         response = await api_stuff(f"api/peers?config={selected_interface}&page=1&limit=50")
 
         if "error" in response:
-            await update.message.reply_text(f"❌ Fetching peers error: {response['error']}")
+            await update.message.reply_text(f"❌ Error fetching peers: {response['error']}")
             return INPUT_PEER_NAME_STATUS
 
         peers = response.get("peers", [])
@@ -2325,21 +2324,30 @@ async def obtain_peer_status(update: Update, context: CallbackContext):
         ]
 
         if not matched_peers:
-            await update.message.reply_text(f"❌ No matching peers found: **{peer_name}**.")
+            await update.message.reply_text(f"❌ No peer found with the name **{peer_name}**.")
             return INPUT_PEER_NAME_STATUS
 
         messages = []
         for peer in matched_peers:
+            remaining_minutes = peer.get("remaining_time", 0)
+            if remaining_minutes > 0:
+                days = remaining_minutes // 1440
+                hours = (remaining_minutes % 1440) // 60
+                minutes = remaining_minutes % 60
+                remaining_human = f"{days} days, {hours} hours, {minutes} minutes"
+            else:
+                remaining_human = "Expired"
+
             peer_details = (
-                f"🎛 **Peer Information**\n\n"
+                f"🎛 **Peer Details**\n\n"
                 f"📛 **Peer Name:** `{peer['peer_name']}`\n"
                 f"🌐 **Peer IP:** `{peer['peer_ip']}`\n"
                 f"🔑 **Public Key:** `{peer['public_key']}`\n"
                 f"📊 **Data Limit:** `{peer['limit']}`\n"
+                f"📡 **Remaining Data:** `{peer['remaining_human']}`\n"
                 f"🕒 **Expiry Time:** {peer['expiry_time']['days']} days, "
                 f"{peer['expiry_time']['hours']} hours, {peer['expiry_time']['minutes']} minutes\n"
-                f"📡 **DNS:** `{peer['dns']}`\n"
-                f"⏳ **Remaining Data:** `{peer['remaining_human']}`\n"
+                f"⏳ **Time Remaining:** {remaining_human}\n"
                 f"⚡ **Status:** {'🟢 Active' if not peer['expiry_blocked'] else '🔴 Blocked'}\n"
             )
             messages.append(peer_details)
@@ -2349,14 +2357,15 @@ async def obtain_peer_status(update: Update, context: CallbackContext):
 
         keyboard = [[InlineKeyboardButton("🔙 Back to Peers Menu", callback_data="peers_menu")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text("Return to the peers menu:", reply_markup=reply_markup)
+        await update.message.reply_text("Returning to the peers menu:", reply_markup=reply_markup)
 
         return ConversationHandler.END
 
     except Exception as e:
-        print(f"Error in peer status: {e}")
-        await update.message.reply_text("❌ An error occurred fetching peer status.")
+        print(f"error in fetching peer status: {e}")
+        await update.message.reply_text("❌ error fetching the peer status.")
         return INPUT_PEER_NAME_STATUS
+
 
 
 async def mnu_back(update: Update, context: CallbackContext):
