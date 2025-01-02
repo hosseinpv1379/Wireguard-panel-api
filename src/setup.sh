@@ -1026,7 +1026,7 @@ sysctl_menu() {
 
 while true; do
     display_menu
-    echo -e "${NC}choose an option [1-8]:${NC} \c"
+    echo -e "${NC}choose an option [1-9]:${NC} \c"
     read -r USER_CHOICE
     select_stuff "$USER_CHOICE"
 done
