@@ -56,6 +56,7 @@
 - اسکریپت اپدیت شد که با فراخوانی wire اجرا شود
 - اپدیت app.py برای ریدایرکت صفحه register به لاگین در صورت وجود نام کاربری و گذرواژه ( thanks to opiran for mentioning that)
 - اپدیت script-fa.js برای جل مشکل refresh peer list در هنگام فیلتر فعال.
+- مشکل بالا نیامدن پنل با اضافه شدن pytz module حل شد
   </details>
 </div>
 
