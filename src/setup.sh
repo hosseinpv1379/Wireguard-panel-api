@@ -430,11 +430,13 @@ setup_virtualenv() {
         cryptography \
         Pillow \
         arabic-reshaper \
-        python-bidi || {
+        python-bidi \
+        pytz || {
             echo -e "${ERROR}Couldn't install Python requirements. check the error messages and try again.${NC}"
             deactivate
             exit 1
         }
+
 
     echo -e "${INFO}[INFO]${YELLOW}Installing stuff...${NC}"
     sudo apt-get update || {
@@ -1026,7 +1028,7 @@ sysctl_menu() {
 
 while true; do
     display_menu
-    echo -e "${NC}choose an option [1-9]:${NC} \c"
+    echo -e "${NC}choose an option [1-8]:${NC} \c"
     read -r USER_CHOICE
     select_stuff "$USER_CHOICE"
 done
