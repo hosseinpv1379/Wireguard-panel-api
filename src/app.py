@@ -1423,12 +1423,20 @@ def register():
     language = session.get('language', 'en') 
     template_name = "register-fa.html" if language == "fa" else "register.html"
 
+    try:
+        with open(DB_FILE, "r") as file:
+            users = json.load(file)
+            if users:  
+                flash("Registration is disabled because users already exist.", "error")
+                return redirect("/login")
+    except (FileNotFoundError, json.JSONDecodeError):
+        users = {}
+
     if request.method == "GET":
         return render_template(template_name)
 
     username = request.form.get("username")
     password = request.form.get("password")
-    users = load_users()
 
     if username in users:
         flash("Username already exists!", "error")
@@ -1440,7 +1448,6 @@ def register():
 
     flash("Registration successful! Please log in.", "success")
     return redirect("/login")
-
 
 
 @app.route("/logout")
