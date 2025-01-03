@@ -23,7 +23,7 @@ sudo git clone "$REPO_URL" "$TARGET_DIR"
 SETUP_SCRIPT="$TARGET_DIR/src/setup.sh"
 if [ -f "$SETUP_SCRIPT" ]; then
     echo -e "${GREEN}Making setup.sh executable...${NC}"
-    sudo chmod +x "$SETUP_SCRIPT"
+    sudo chmod +x "$SETUP_SCRIPT"  
 
     echo -e "${GREEN}Running setup.sh...${NC}"
     cd "$TARGET_DIR/src" || exit 1
@@ -38,14 +38,15 @@ echo -e "${GREEN}Setup complete.${NC}"
 WIRE_SCRIPT="/usr/local/bin/wire"
 
 if [ ! -f "$WIRE_SCRIPT" ]; then
-    echo -e "${GREEN}Creating 'wire' to run from anywhere..${NC}"
+    echo -e "${GREEN}Creating 'wire' to run from anywhere...${NC}"
 
     echo -e "#!/bin/bash" | sudo tee "$WIRE_SCRIPT" > /dev/null
     echo -e "cd $TARGET_DIR/src && sudo ./setup.sh" | sudo tee -a "$WIRE_SCRIPT" > /dev/null
 
-    sudo chmod +x "$WIRE_SCRIPT"
+    echo -e "${GREEN}Making 'wire' script executable...${NC}"
+    sudo chmod +x "$WIRE_SCRIPT"  
 else
     echo -e "${YELLOW}'wire' command already exists. Skipping creation.${NC}"
 fi
 
-echo -e "${GREEN}run the script from anywhere by typing 'wire'.${NC}"
+echo -e "${GREEN}Run the script from anywhere by typing 'wire'.${NC}"
