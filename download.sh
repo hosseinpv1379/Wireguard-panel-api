@@ -4,7 +4,31 @@ RED="\033[0;31m"
 GREEN="\033[0;32m"
 YELLOW="\033[0;33m"
 BLUE="\033[0;34m"
-NC="\033[0m" 
+NC="\033[0m"
+
+echo -e "${BLUE}Checking for systemd-resolved...${NC}"
+if ! command -v systemd-resolve &> /dev/null; then
+    echo -e "${YELLOW}systemd-resolved is not installed. Installing...${NC}"
+    sudo apt update && sudo apt install -y systemd-resolved
+else
+    echo -e "${GREEN}systemd-resolved is already installed.${NC}"
+fi
+
+echo -e "${BLUE}making sure that systemd-resolved is running...${NC}"
+if ! sudo systemctl is-active --quiet systemd-resolved; then
+    echo -e "${YELLOW}Starting systemd-resolved...${NC}"
+    sudo systemctl start systemd-resolved
+else
+    echo -e "${GREEN}systemd-resolved is already running.${NC}"
+fi
+
+echo -e "${BLUE}Enabling systemd-resolved to start on server reboot...${NC}"
+if ! sudo systemctl is-enabled --quiet systemd-resolved; then
+    sudo systemctl enable systemd-resolved
+    echo -e "${GREEN}systemd-resolved enabled.${NC}"
+else
+    echo -e "${GREEN}systemd-resolved is already enabled.${NC}"
+fi
 
 echo -e "${BLUE}Updating & installing Git...${NC}"
 sudo apt update && sudo apt install -y git
