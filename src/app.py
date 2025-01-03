@@ -152,7 +152,7 @@ cache = Cache(app)
 
 def get_system_timezone():
     try:
-        result = subprocess.run(['/usr/bin/timedatectl'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True, shell=False)
+        result = subprocess.run(['timedatectl'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True, shell=False)
         
         for line in result.stdout.split('\n'):
             if 'Time zone' in line:
@@ -458,7 +458,7 @@ def start_telegram():
             raise ValueError("Wrong service name. Must start with 'telegram-bot-'.")
         
         subprocess.run(
-            ["/bin/systemctl", "start", sanitized_service_name],  
+            ["systemctl", "start", sanitized_service_name],  
             check=True, 
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -492,7 +492,7 @@ def stop_telegram():
             raise ValueError("Wrong service name. Must start with 'telegram-bot-'.")
         
         subprocess.run(
-            ["/bin/systemctl", "stop", sanitized_service_name],  
+            ["systemctl", "stop", sanitized_service_name],  
             check=True,  
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -537,7 +537,7 @@ def uninstall_telegram():
             raise ValueError("Wrong service name. Must start with 'telegram-bot-'.")
         
         subprocess.run(
-            ["/bin/systemctl", "stop", sanitized_service_name], 
+            ["systemctl", "stop", sanitized_service_name], 
             check=True,  
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -545,7 +545,7 @@ def uninstall_telegram():
         )
 
         subprocess.run(
-            ["/bin/systemctl", "disable", sanitized_service_name],  
+            ["systemctl", "disable", sanitized_service_name],  
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -559,7 +559,7 @@ def uninstall_telegram():
             print(f"Service file {service_file} does not exist.")
 
         subprocess.run(
-            ["/bin/systemctl", "daemon-reload"],  
+            ["systemctl", "daemon-reload"],  
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -616,7 +616,7 @@ def bot_status():
 
         safe_service_name = sanitized_service_name
 
-        command = ["/bin/systemctl", "is-active", safe_service_name]  
+        command = ["systemctl", "is-active", safe_service_name]  
         result = run_command(command)  
 
         
@@ -801,7 +801,7 @@ def save_users(users):
 def track_statuses():
     def check_xray_status():
         try:
-            command = ["sudo", "/bin/systemctl", "is-active", "xray"]
+            command = ["sudo", "systemctl", "is-active", "xray"]
 
             result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             return result.stdout.strip() == 'active'
@@ -1044,7 +1044,7 @@ def update_flask_config():
                 service_name = "wireguard-panel.service"
 
                 subprocess.run(
-                    ["/bin/systemctl", "restart", service_name],  
+                    ["systemctl", "restart", service_name],  
                     check=True, 
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
@@ -1573,7 +1573,7 @@ def valid_private_key(key: str) -> bool:
 @app.route('/api/interface-status', methods=['GET'])
 def interface_status():
     try:
-        wg_path = "/usr/bin/wg"  
+        wg_path = "wg"  
 
         if not os.path.isfile(wg_path) or not os.access(wg_path, os.X_OK):
             return jsonify({"error": f"wg command not found or not executable at {wg_path}"}), 500
@@ -1616,7 +1616,7 @@ def toggle_interface():
     sanitized_interface = sanitize_input(interface)  
 
     try:
-        wg_quick_path = "/usr/local/bin/wg-quick"  
+        wg_quick_path = "wg-quick"  
 
         command_down = [wg_quick_path, "down", sanitized_interface]
         command_up = [wg_quick_path, "up", sanitized_interface]
@@ -1666,7 +1666,7 @@ def restart_wireguard_interface(interface="wg0"):
     try:
         sanitized_interface = sanitize_interface_name(interface)
 
-        wg_quick_path = "/usr/local/bin/wg-quick" 
+        wg_quick_path = "wg-quick" 
         
         subprocess.run([wg_quick_path, "down", sanitized_interface], check=True)
         subprocess.run([wg_quick_path, "up", sanitized_interface], check=True)
@@ -1897,7 +1897,7 @@ def sanitize_ip(ip_address: str):
 def add_blackhole_route(peer_ip):
     try:
         sanitized_ip = sanitize_ip(peer_ip)
-        ip_path = "/sbin/ip"
+        ip_path = "ip"
 
         check_route = subprocess.run(
             [ip_path, "route", "show", f"{sanitized_ip}/32"],
@@ -1924,7 +1924,7 @@ def add_blackhole_route(peer_ip):
 def remove_blackhole_route(peer_ip):
     try:
         sanitized_ip = sanitize_ip(peer_ip)
-        ip_path = "/sbin/ip"
+        ip_path = "ip"
 
         check_route = subprocess.run(
             [ip_path, "route", "show", f"{sanitized_ip}/32"],
@@ -2374,12 +2374,19 @@ def export_peer():
         with open(temp_file.name, "w") as file:
             file.write(peer_config)
 
-        return send_file(
+        response = send_file(
             temp_file.name,
             as_attachment=True,
-            download_name=f"{peer_name}.conf",
-            mimetype="text/plain",
+            download_name=f"{peer_name}.conf",  
+            mimetype="application/octet-stream", 
         )
+
+        
+        response.cache_control.no_cache = True
+        response.cache_control.no_store = True
+        response.cache_control.must_revalidate = True
+
+        return response
     except Exception as e:
         return jsonify(error=f"error in creating config file: {str(e)}"), 500
 
@@ -2786,7 +2793,7 @@ def wg_config_details():
         try:
             sanitized_interface_name = sanitize_interface_name(interface_name)
 
-            ip_path = "/sbin/ip"  
+            ip_path = "ip"  
 
             command = [ip_path, "link", "show", sanitized_interface_name] 
             result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -2821,7 +2828,7 @@ def toggle_config():
 
     active = request.args.get("active", "false").lower() == "true"
 
-    wg_quick_path = "/usr/sbin/wg-quick"  
+    wg_quick_path = "wg-quick"  
 
     try:
         if active:
@@ -2839,7 +2846,7 @@ def toggle_config():
                 text=True,
             )
 
-        ip_path = "/sbin/ip" 
+        ip_path = "ip" 
         interface_state = subprocess.run(
             [ip_path, "link", "show", interface_name],
             capture_output=True,
@@ -2932,7 +2939,7 @@ def track_available_ips():
 @app.route("/api/generate-keys", methods=["GET"])
 def generate_keys():
     try:
-        wg_path = "/usr/bin/wg" 
+        wg_path = "wg" 
 
         result_private = subprocess.run(
             [wg_path, "genkey"], 
@@ -3066,7 +3073,7 @@ def warp_status():
     wgcf_status = "Inactive"
 
     try:
-        command = ["/usr/sbin/ip", "link", "show"]
+        command = ["ip", "link", "show"]
         interfaces = run_command(command).splitlines()
 
         if any("wgcf" in line for line in interfaces):
@@ -3085,7 +3092,7 @@ def xray_status():
     xray_status = "Inactive"
 
     try:
-        command = ["sudo", "/bin/systemctl", "is-active", "xray"]
+        command = ["sudo", "systemctl", "is-active", "xray"]
         result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
         if result.returncode == 0:
@@ -3104,7 +3111,7 @@ def reset_warp():
     try:
         messages = []
 
-        command = ["/usr/sbin/ip", "link", "show"]
+        command = ["ip", "link", "show"]
         interfaces = run_command(command).splitlines()
 
         if any("wgcf" in line for line in interfaces):
@@ -3616,7 +3623,7 @@ def create_peer():
 
         interface = sanitize_interface_name(config_file.split(".")[0])
 
-        wg_path = "/usr/bin/wg"  
+        wg_path = "wg"  
 
         subprocess.run(
             [wg_path, "set", interface, "peer", client_public_key, "allowed-ips", f"{sanitized_peer_ip}/32"],
@@ -3671,7 +3678,7 @@ def delete_peer():
         public_key = sanitize_public_key(peer["public_key"])
 
         try:
-            wg_path = "/usr/bin/wg"  
+            wg_path = "wg"  
             result = subprocess.run([wg_path, "set", interface, "peer", public_key, "remove"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             if result.returncode != 0:
                 logging.error(f"error in removing peer from Wireguard: {result.stderr}")
@@ -3797,7 +3804,7 @@ def reset_peer_traffic(interface, public_key, peer_ip=None):
         interface = sanitize_interface_name(interface)
         public_key = sanitize_public_key(public_key)
 
-        wg_path = "/usr/bin/wg"  
+        wg_path = "wg"  
 
         subprocess.run([wg_path, "set", interface, "peer", public_key, "remove"], check=True)
         print(f"Peer {public_key} removed from {interface}, resetting counters.")
@@ -3829,7 +3836,7 @@ def parse_traffic(peer_ip, public_key):
         if not isinstance(peer_ip, str) or not isinstance(public_key, str):
             raise ValueError("Both peer_ip and public_key must be strings.")
 
-        wg_path = "/usr/bin/wg"  
+        wg_path = "wg"  
 
         result = subprocess.run(
             [wg_path, "show", "all", "dump"], 
@@ -4121,7 +4128,7 @@ def wireguard_details():
     try:
         interface_name = sanitize_interface_name(config_file.split(".")[0])
 
-        ip_path = "/sbin/ip" 
+        ip_path = "ip" 
 
         result = subprocess.run(
             [ip_path, "link", "show", interface_name],
