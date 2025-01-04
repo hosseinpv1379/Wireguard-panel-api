@@ -75,6 +75,7 @@ CONFIRM_TEMPLATE = 51
 SELECT_CONFIG = 52
 VIEW_PEER_DETAILS = 53
 SELECT_TEMPLATE_PEER = 54
+INPUT_MTU = 55
 
 
 def load_telegram_yaml():
@@ -82,6 +83,7 @@ def load_telegram_yaml():
     try:
         with open(yaml_path, "r") as file:
             config = yaml.safe_load(file)
+            print(f"Loaded admin_chat_id: {config.get('admin_chat_id')}")
             return {
                 "admin_chat_id": config.get("admin_chat_id", None),
             }
@@ -89,8 +91,16 @@ def load_telegram_yaml():
         print(f"❌ Config file {yaml_path} not found.")
         raise
     except yaml.YAMLError as e:
-        print(f"❌ invalid YAML in {yaml_path}. {e}")
+        print(f"❌ Invalid YAML in {yaml_path}. {e}")
         raise
+
+
+def is_authorized(chat_id):
+    config = load_telegram_yaml()
+    admin_chat_id = config["admin_chat_id"]
+    print(f"Checking authorization for chat_id: {chat_id}, admin_chat_id: {admin_chat_id}")
+    return str(chat_id) == str(admin_chat_id)
+
 
 def load_config():
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -324,6 +334,14 @@ async def start(update: Update = None, context: CallbackContext = None, chat_id:
     if chat_id is None:
         chat_id = update.effective_chat.id if update else None
 
+    if not is_authorized(chat_id):
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="❌ You are not authorized to perform this action.",
+            parse_mode="Markdown"
+        )
+        return
+
     try:
         flask_status()
     except Exception as e:
@@ -389,6 +407,14 @@ async def start(update: Update = None, context: CallbackContext = None, chat_id:
 
 
 async def view_logs(update: Update, context: CallbackContext):
+    chat_id = update.effective_chat.id
+    if not is_authorized(chat_id):
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="❌ You are not authorized to perform this action.",
+            parse_mode="Markdown"
+        )
+        return
     query = update.callback_query
     await query.answer()
 
@@ -416,6 +442,14 @@ async def view_logs(update: Update, context: CallbackContext):
 
 
 async def settings_menu(update: Update, context: CallbackContext):
+    chat_id = update.effective_chat.id
+    if not is_authorized(chat_id):
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="❌ You are not authorized to perform this action.",
+            parse_mode="Markdown"
+        )
+        return
     if update.callback_query:
         query = update.callback_query
         await query.answer()
@@ -543,6 +577,14 @@ async def back_to_settings(update: Update, context: CallbackContext):
 
 
 async def update_wireguard_setting(update: Update, context: CallbackContext):
+    chat_id = update.effective_chat.id
+    if not is_authorized(chat_id):
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="❌ You are not authorized to perform this action.",
+            parse_mode="Markdown"
+        )
+        return
     await update.callback_query.answer()
 
     interface = context.user_data.get("selected_interface", "wg0.conf")
@@ -587,7 +629,10 @@ async def ask_for_port(update: Update, context: CallbackContext):
 async def ask_for_mtu(update: Update, context: CallbackContext):
     await update.callback_query.answer()
     await update.callback_query.message.reply_text(
-        "📏 *Update MTU:*\n\nPlease enter the new MTU value (Maximum Transmission Unit).\n\nExample: `1420`",
+        "📏 *Update MTU:*\n\n"
+        "Please enter the new MTU value.\n\n"
+        "The MTU value must be between `1280` and `1420`.\n\n"
+        "Example: `1420`",
         parse_mode="Markdown"
     )
     return CONFIG_MTU
@@ -609,12 +654,28 @@ async def set_port(update: Update, context: CallbackContext):
     return CONFIG_INTERFACE
 
 async def set_mtu(update: Update, context: CallbackContext):
-    mtu = update.message.text
-    context.user_data["mtu"] = mtu
-    await update.message.reply_text(f"✅ MTU updated to `{mtu}`.\n\nChoose another option or apply changes.",
-                                    parse_mode="Markdown")
-    await update_wireguard_setting(update, context)
+    mtu = update.message.text.strip()
+
+    if not mtu.isdigit() or not (1280 <= int(mtu) <= 1420):
+        await update.message.reply_text(
+            "❌ Invalid MTU value. Please enter a value between `1280` and `1420`.",
+            parse_mode="Markdown"
+        )
+        return CONFIG_MTU
+
+    context.user_data["mtu"] = int(mtu)
+
+    keyboard = [[InlineKeyboardButton("🔙 Back to Settings Menu", callback_data="settings_menu")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.message.reply_text(
+        f"✅ MTU has been updated to `{mtu}`.\n\n"
+        "You can return to the settings menu or update other settings.",
+        parse_mode="Markdown",
+        reply_markup=reply_markup
+    )
     return CONFIG_INTERFACE
+
 
 async def set_dns(update: Update, context: CallbackContext):
     dns = update.message.text
@@ -654,6 +715,15 @@ async def apply_config(update: Update, context: CallbackContext):
 async def enable_notifications(update: Update, context: CallbackContext):
     global admin_chat_id
     chat_id = update.effective_chat.id
+
+    if not is_authorized(chat_id):
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="❌ You are not authorized to perform this action.",
+            parse_mode="Markdown"
+        )
+        return
+
     admin_chat_id = chat_id
     save_chat_id(chat_id)
     keyboard = [[InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]]
@@ -666,11 +736,23 @@ async def enable_notifications(update: Update, context: CallbackContext):
         reply_markup=reply_markup
     )
 
+
 async def disable_notifications(update: Update, context: CallbackContext):
     global admin_chat_id
+    chat_id = update.effective_chat.id
+
+    if not is_authorized(chat_id):
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="❌ You are not authorized to perform this action.",
+            parse_mode="Markdown"
+        )
+        return
+
     context.bot_data['notifications_enabled'] = False 
     keyboard = [[InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
+
     await update.callback_query.answer()
     await update.callback_query.message.reply_text(
         "❌ Notifications have been disabled.\n\nYou can re-enable them from the main menu.",
@@ -683,6 +765,14 @@ def register_notification(application):
     application.add_handler(CallbackQueryHandler(disable_notifications, pattern="disable_notifications"))
 
 async def backups_menu(update: Update, context: CallbackContext):
+    chat_id = update.effective_chat.id
+    if not is_authorized(chat_id):
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="❌ You are not authorized to perform this action.",
+            parse_mode="Markdown"
+        )
+        return
     query = update.callback_query
     await query.answer()
 
@@ -729,6 +819,14 @@ def determine_base_url(config):
 
 
 async def show_backups(update: Update, context: CallbackContext):
+    chat_id = update.effective_chat.id
+    if not is_authorized(chat_id):
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="❌ You are not authorized to perform this action.",
+            parse_mode="Markdown"
+        )
+        return
     query = update.callback_query
     await query.answer()
 
@@ -762,6 +860,14 @@ async def show_backups(update: Update, context: CallbackContext):
 
 
 async def create_backup(update: Update, context: CallbackContext):
+    chat_id = update.effective_chat.id
+    if not is_authorized(chat_id):
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="❌ You are not authorized to perform this action.",
+            parse_mode="Markdown"
+        )
+        return
     query = update.callback_query
     await query.answer()
 
@@ -778,6 +884,14 @@ async def create_backup(update: Update, context: CallbackContext):
 
 
 async def delete_backup_apply(update: Update, context: CallbackContext):
+    chat_id = update.effective_chat.id
+    if not is_authorized(chat_id):
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="❌ You are not authorized to perform this action.",
+            parse_mode="Markdown"
+        )
+        return
     query = update.callback_query
     await query.answer()
 
@@ -822,6 +936,14 @@ async def delete_backup(update: Update, context: CallbackContext):
 
 
 async def restore_backup_apply(update: Update, context: CallbackContext):
+    chat_id = update.effective_chat.id
+    if not is_authorized(chat_id):
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="❌ You are not authorized to perform this action.",
+            parse_mode="Markdown"
+        )
+        return
     query = update.callback_query
     await query.answer()
     response = await api_stuff("api/backups")
@@ -876,6 +998,13 @@ def register_backup_stuff(application):
 
 async def stat_metrics(update: Update, context: CallbackContext):
     chat_id = update.effective_chat.id
+    if not is_authorized(chat_id):
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="❌ You are not authorized to perform this action.",
+            parse_mode="Markdown"
+        )
+        return
     response = await api_stuff("api/metrics")
     if "error" in response:
         await context.bot.send_message(chat_id, text=f"❌ fetching metrics error: {response['error']}")
@@ -921,6 +1050,13 @@ async def stat_metrics(update: Update, context: CallbackContext):
 
 async def peers_menu(update: Update, context: CallbackContext):
     chat_id = update.effective_chat.id
+    if not is_authorized(chat_id):
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="❌ You are not authorized to perform this action.",
+            parse_mode="Markdown"
+        )
+        return
     message = (
         "🎛 **Peer Management Menu**\n\n"
         "Choose an option to manage your Wireguard peers:"
@@ -1364,6 +1500,13 @@ async def generate_peerqr_general(update: Update, context: CallbackContext):
 
 async def init_deletepeer(update: Update, context: CallbackContext):
     chat_id = update.effective_chat.id
+    if not is_authorized(chat_id):
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="❌ You are not authorized to perform this action.",
+            parse_mode="Markdown"
+        )
+        return
     response = await api_stuff("api/get-interfaces")
     
     if "error" in response:
@@ -1526,6 +1669,13 @@ async def generate_peerqr_create(update: Update, context: CallbackContext):
 
 async def init_peer_create(update: Update, context: CallbackContext):
     chat_id = update.effective_chat.id
+    if not is_authorized(chat_id):
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="❌ You are not authorized to perform this action.",
+            parse_mode="Markdown"
+        )
+        return
     response = await api_stuff("api/get-interfaces")
     
     if "error" in response:
@@ -1671,6 +1821,7 @@ async def write_custom_dns(update: Update, context: CallbackContext):
     )
     return INPUT_EXPIRY_TIME
 
+
 async def write_expiry_time(update: Update, context: CallbackContext):
     days = update.message.text.strip()
     if not days.isdigit() or int(days) <= 0:
@@ -1678,6 +1829,23 @@ async def write_expiry_time(update: Update, context: CallbackContext):
         return INPUT_EXPIRY_TIME
 
     context.user_data["expiry_days"] = int(days)
+
+    await update.message.reply_text(
+        "⏳ *Plz enter MTU Value (default 1280):*\n\n"
+        "Example : 1340",
+        parse_mode="Markdown"
+    )
+    return INPUT_MTU
+
+
+async def write_mtu(update: Update, context: CallbackContext):
+    mtu_value = update.message.text.strip()
+    
+    if mtu_value and not mtu_value.isdigit():
+        await update.message.reply_text("❌ Wrong Value! Please enter a valid mtu value.")
+        return INPUT_MTU
+
+    context.user_data["mtu"] = int(mtu_value) if mtu_value else 1280
 
     keyboard = [
         [InlineKeyboardButton("✅ Yes", callback_data="confirm_usage_yes")],
@@ -1693,12 +1861,15 @@ async def write_expiry_time(update: Update, context: CallbackContext):
     )
     return CONFIRM_USAGE
 
+
 async def confirm_use(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
 
     first_usage = query.data == "confirm_usage_yes"
     context.user_data["first_usage"] = first_usage
+
+    mtu = context.user_data.get("mtu", 1280)
 
     payload = {
         "peerName": context.user_data["peer_name"],
@@ -1708,6 +1879,7 @@ async def confirm_use(update: Update, context: CallbackContext):
         "dns": context.user_data["dns"],
         "expiryDays": context.user_data["expiry_days"],
         "firstUsage": first_usage,
+        "mtu": mtu
     }
     response = await api_stuff("api/create-peer", method="POST", data=payload)
     if "error" in response:
@@ -1715,28 +1887,45 @@ async def confirm_use(update: Update, context: CallbackContext):
         return ConversationHandler.END
 
     keyboard = [
-        [InlineKeyboardButton("📂 Download Config", callback_data=f"download_{payload['peerName']}")],
-        [InlineKeyboardButton("📷 Generate QR Code", callback_data=f"qr_{payload['peerName']}")],
-        [InlineKeyboardButton("🔙 Back to Peers Menu", callback_data="peers_menu")],
-        [InlineKeyboardButton("🏠 Back to Main Menu", callback_data="main_menu")]
+    [
+        InlineKeyboardButton("📂 Download Config", callback_data=f"download_{payload['peerName']}"),
+        InlineKeyboardButton("📷 Get QR Code", callback_data=f"qr_{payload['peerName']}")
+    ],
+    [
+        InlineKeyboardButton("🔙 Back to Users Menu", callback_data="peers_menu"),
+        InlineKeyboardButton("🏠 Back to Main Menu", callback_data="main_menu")
     ]
+]
+
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await query.message.reply_text(
-        f"✅ *Peer '{payload['peerName']}' created successfully!*\n\n"
-        f"📄 Configuration File: `{payload['configFile']}`\n"
-        f"🌍 IP Address: `{payload['peerIp']}`\n"
-        f"📏 Data Limit: `{payload['dataLimit']}`\n"
-        f"⏳ Expiry Days: `{payload['expiryDays']}`",
-        parse_mode="Markdown",
-        reply_markup=reply_markup
-    )
-    return ConversationHandler.END
-
+    f"✅ *Peer '{payload['peerName']}' created successfully!* \n\n"
+    f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    f"🔹 *Peer Name:* `{payload['peerName']}`\n"
+    f"📄 *Interface Name:* `{payload['configFile']}`\n"
+    f"🌍 *IP Address:* `{payload['peerIp']}`\n"
+    f"📏 *Data Limit:* `{payload['dataLimit']}`\n"
+    f"⏳ *Expiry Days:* `{payload['expiryDays']} day/s`\n"
+    f"📡 *MTU:* `{payload['mtu']}`\n"
+    f"🛜 *DNS:* `{payload['dns']}`\n"
+    f"🟢 *First Usage:* {'Enabled 🟢' if payload['firstUsage'] else 'Disabled 🔴'}\n\n"
+    f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    f"Use the buttons below to download the configuration file or get the QR code:",
+    parse_mode="Markdown",
+    reply_markup=reply_markup
+)
 
 
 async def init_resetpeer(update: Update, context: CallbackContext):
     chat_id = update.effective_chat.id
+    if not is_authorized(chat_id):
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="❌ You are not authorized to perform this action.",
+            parse_mode="Markdown"
+        )
+        return
     response = await api_stuff("api/get-interfaces")
     
     if "error" in response:
@@ -1860,6 +2049,13 @@ async def reset_action(update: Update, context: CallbackContext):
 
 async def edit_peer_init(update: Update, context: CallbackContext):
     chat_id = update.effective_chat.id
+    if not is_authorized(chat_id):
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="❌ You are not authorized to perform this action.",
+            parse_mode="Markdown"
+        )
+        return
 
     response = await api_stuff("api/get-interfaces")
     if "error" in response:
@@ -2088,6 +2284,13 @@ async def save_peer_changes(update: Update, context: CallbackContext):
 
 async def block_unblock_peer(update: Update, context: CallbackContext):
     chat_id = update.effective_chat.id
+    if not is_authorized(chat_id):
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="❌ You are not authorized to perform this action.",
+            parse_mode="Markdown"
+        )
+        return
     config_dir = "/etc/wireguard/"  
 
     try:
@@ -2264,6 +2467,13 @@ async def toggle_block_status(update: Update, context: CallbackContext):
 
 async def peer_status_mnu(update: Update, context: CallbackContext):
     chat_id = update.effective_chat.id
+    if not is_authorized(chat_id):
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="❌ You are not authorized to perform this action.",
+            parse_mode="Markdown"
+        )
+        return
     response = await api_stuff("api/get-interfaces")
 
     if "error" in response:
@@ -2439,10 +2649,11 @@ def main():
         SELECT_DNS: [CallbackQueryHandler(select_dns, pattern="dns_.*")],
         INPUT_CUSTOM_DNS: [MessageHandler(filters.TEXT & ~filters.COMMAND, write_custom_dns)],
         INPUT_EXPIRY_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, write_expiry_time)],
+        INPUT_MTU: [MessageHandler(filters.TEXT & ~filters.COMMAND, write_mtu)],  
         CONFIRM_USAGE: [CallbackQueryHandler(confirm_use, pattern="confirm_usage_.*")],
         ConversationHandler.END: [
-            CallbackQueryHandler(download_peerconfig_create, pattern="download_new_.*"),
-            CallbackQueryHandler(generate_peerqr_create, pattern="qr_new_.*")
+            CallbackQueryHandler(download_peerconfig_create, pattern="download_.*"),
+            CallbackQueryHandler(generate_peerqr_create, pattern="qr_.*")
         ]
     },
     fallbacks=[],
