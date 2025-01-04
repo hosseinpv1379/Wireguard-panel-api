@@ -37,6 +37,14 @@ update_files() {
 
     echo -e "${CYAN}Replacing files...${NC}"
 
+    if [ -f "$SCRIPT_DIR/src/telegram/robot.py" ]; then
+        sudo rm "$SCRIPT_DIR/src/telegram/robot.py" && echo -e "${LIGHT_GREEN}✔ Removed: telegram/robot.py${NC}" || echo -e "${LIGHT_RED}✘ Failed to remove: telegram/robot.py${NC}"
+    fi
+
+    if [ -f "$SCRIPT_DIR/src/telegram/robot-fa.py" ]; then
+        sudo rm "$SCRIPT_DIR/src/telegram/robot-fa.py" && echo -e "${LIGHT_GREEN}✔ Removed: telegram/robot-fa.py${NC}" || echo -e "${LIGHT_RED}✘ Failed to remove: telegram/robot-fa.py${NC}"
+    fi
+
     if [ -f "$TMP_DIR/src/app.py" ]; then
         sudo mv "$TMP_DIR/src/app.py" "$SCRIPT_DIR/src/" && echo -e "${LIGHT_GREEN}✔ Updated: app.py${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: app.py${NC}"
     else
@@ -93,7 +101,6 @@ update_files() {
 }
 
 
-
 reinstall() {
     TARGET_DIR="/usr/local/bin/Wireguard-panel"
     REPO_URL="https://github.com/Azumi67/Wireguard-panel.git"
@@ -139,6 +146,7 @@ create_wire_script() {
     sudo rm -f "$WIRE_SCRIPT"
 
     echo -e "#!/bin/bash" | sudo tee "$WIRE_SCRIPT" > /dev/null
+    echo -e "sudo chmod +x /usr/local/bin/Wireguard-panel/src/setup.sh" | sudo tee -a "$WIRE_SCRIPT" > /dev/null
     echo -e "cd /usr/local/bin/Wireguard-panel/src && sudo ./setup.sh" | sudo tee -a "$WIRE_SCRIPT" > /dev/null
 
     echo -e "${CYAN}Making 'wire' script runnable...${NC}"
@@ -153,6 +161,7 @@ create_wire_script() {
         echo -e "${LIGHT_YELLOW}/usr/local/bin is already in PATH.${NC}"
     fi
 }
+
 
 
 main() {
