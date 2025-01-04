@@ -79,11 +79,13 @@ VIEW_PEER_DETAILS = 53
 SELECT_TEMPLATE_PEER = 54
 INPUT_MTU = 55
 
+
 def load_telegram_yaml():
     yaml_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "telegram.yaml")
     try:
         with open(yaml_path, "r") as file:
             config = yaml.safe_load(file)
+            print(f"Loaded admin_chat_id: {config.get('admin_chat_id')}")
             return {
                 "admin_chat_id": config.get("admin_chat_id", None),
             }
@@ -91,8 +93,9 @@ def load_telegram_yaml():
         print(f"❌ Config file {yaml_path} not found.")
         raise
     except yaml.YAMLError as e:
-        print(f"❌ invalid YAML in {yaml_path}. {e}")
+        print(f"❌ Invalid YAML in {yaml_path}. {e}")
         raise
+
 
 def load_config():
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -698,7 +701,9 @@ async def apply_config(update: Update, context: CallbackContext):
 
 def is_authorized(chat_id):
     config = load_telegram_yaml()
-    return chat_id in config["admin_chat_ids"]
+    admin_chat_id = config["admin_chat_id"]
+    print(f"Checking authorization for chat_id: {chat_id}, admin_chat_id: {admin_chat_id}")
+    return str(chat_id) == str(admin_chat_id)
 
 
 async def enable_notifications(update: Update, context: CallbackContext):
