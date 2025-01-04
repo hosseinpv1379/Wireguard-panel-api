@@ -30,7 +30,6 @@ update_files() {
 
     echo -e "${LIGHT_YELLOW}Cloning repository...${NC}"
     git clone "$REPO_URL" "$TMP_DIR"
-
     if [ $? -ne 0 ]; then
         echo -e "${LIGHT_RED}[Error]: Failed to clone repository.${NC}"
         return
@@ -59,20 +58,20 @@ update_files() {
     fi
 
     if [ -f "$TMP_DIR/src/telegram/robot.py" ]; then
-        sudo mv "$TMP_DIR/src/telegram/robot.py" "$SCRIPT_DIR/telegram/" && echo -e "${LIGHT_GREEN}✔ Updated: telegram/robot.py${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: telegram/robot.py${NC}"
+        sudo mv "$TMP_DIR/src/telegram/robot.py" "$SCRIPT_DIR/src/telegram/" && echo -e "${LIGHT_GREEN}✔ Updated: telegram/robot.py${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: telegram/robot.py${NC}"
     else
         echo -e "${LIGHT_RED}[Error]: telegram/robot.py not found in repository.${NC}"
     fi
 
     if [ -f "$TMP_DIR/src/telegram/robot-fa.py" ]; then
-        sudo mv "$TMP_DIR/src/telegram/robot-fa.py" "$SCRIPT_DIR/telegram/" && echo -e "${LIGHT_GREEN}✔ Updated: telegram/robot-fa.py${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: telegram/robot-fa.py${NC}"
+        sudo mv "$TMP_DIR/src/telegram/robot-fa.py" "$SCRIPT_DIR/src/telegram/" && echo -e "${LIGHT_GREEN}✔ Updated: telegram/robot-fa.py${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: telegram/robot-fa.py${NC}"
     else
         echo -e "${LIGHT_RED}[Error]: telegram/robot-fa.py not found in repository.${NC}"
     fi
 
     if [ -f "$TMP_DIR/src/setup.sh" ]; then
-        sudo mv "$TMP_DIR/src/setup.sh" "$SCRIPT_DIR/" && echo -e "${LIGHT_GREEN}✔ Updated: setup.sh${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: setup.sh${NC}"
-        sudo chmod +x "$SCRIPT_DIR/setup.sh" && echo -e "${LIGHT_GREEN}✔ setup.sh is now executable.${NC}" || echo -e "${LIGHT_RED}✘ Failed to make setup.sh executable.${NC}"
+        sudo mv "$TMP_DIR/src/setup.sh" "$SCRIPT_DIR/src/" && echo -e "${LIGHT_GREEN}✔ Updated: setup.sh${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: setup.sh${NC}"
+        sudo chmod +x "$SCRIPT_DIR/src/setup.sh" && echo -e "${LIGHT_GREEN}✔ setup.sh is now executable.${NC}" || echo -e "${LIGHT_RED}✘ Failed to make setup.sh executable.${NC}"
     else
         echo -e "${LIGHT_RED}[Error]: setup.sh not found in repository.${NC}"
     fi
@@ -81,13 +80,15 @@ update_files() {
     sudo rm -rf "$TMP_DIR" && echo -e "${LIGHT_GREEN}✔ Temporary files removed.${NC}" || echo -e "${LIGHT_RED}✘ Failed to remove temporary files.${NC}"
 
     read -p "$(echo -e "${CYAN}Press Enter to re-run the updated setup.sh...${NC}")"
-    bash "$SCRIPT_DIR/setup.sh"
+    echo -e "${CYAN}Running setup.sh from the directory...${NC}"
+    cd "$SCRIPT_DIR/src" || { echo -e "${LIGHT_RED}[Error]: Failed to navigate to $SCRIPT_DIR/src.${NC}"; return; }
+    sudo ./setup.sh
     if [ $? -ne 0 ]; then
-        echo -e "${LIGHT_RED}✘ Running setup.sh failed. Please check the script for errors.${NC}"
+        echo -e "${LIGHT_RED}✘ setup.sh execution failed. Please check the script for errors.${NC}"
         return
     fi
-    echo -e "${LIGHT_GREEN}✔ setup.sh ran successfully.${NC}"
 
+    echo -e "${LIGHT_GREEN}✔ setup.sh ran successfully.${NC}"
     echo -e "${LIGHT_GREEN}Update completed successfully!${NC}"
 }
 
@@ -101,8 +102,34 @@ reinstall() {
     sudo rm -rf "$TARGET_DIR"
     echo -e "${LIGHT_BLUE}Cloning Wireguard-panel repo into $TARGET_DIR...${NC}"
     sudo git clone "$REPO_URL" "$TARGET_DIR"
-    echo -e "${LIGHT_GREEN}Reinstall complete.${NC}"
+
+    if [ $? -ne 0 ]; then
+        echo -e "${LIGHT_RED}✘ cloning repository failed. Exiting.${NC}"
+        return
+    fi
+
+    echo -e "${LIGHT_GREEN}✔ Reinstall/Install complete.${NC}"
+
+    SETUP_SCRIPT="$TARGET_DIR/src/setup.sh"
+    if [ -f "$SETUP_SCRIPT" ]; then
+        echo -e "${CYAN}Making setup.sh runnable...${NC}"
+        sudo chmod +x "$SETUP_SCRIPT" && echo -e "${LIGHT_GREEN}✔ setup.sh is now executable.${NC}" || echo -e "${LIGHT_RED}✘ Failed to make setup.sh executable.${NC}"
+    else
+        echo -e "${LIGHT_RED}[Error]: setup.sh not found in $TARGET_DIR/src.${NC}"
+        return
+    fi
+
+    echo -e "${CYAN}Running setup.sh from the directory...${NC}"
+    cd "$TARGET_DIR/src"
+    sudo ./setup.sh
+    if [ $? -ne 0 ]; then
+        echo -e "${LIGHT_RED}✘ setup.sh rerunning failed. Please check the script for errors.${NC}"
+        return
+    fi
+
+    echo -e "${LIGHT_GREEN}✔ setup.sh ran successfully.${NC}"
 }
+
 
 create_wire_script() {
     WIRE_SCRIPT="/usr/local/bin/wire"
@@ -114,9 +141,19 @@ create_wire_script() {
     echo -e "#!/bin/bash" | sudo tee "$WIRE_SCRIPT" > /dev/null
     echo -e "cd /usr/local/bin/Wireguard-panel/src && sudo ./setup.sh" | sudo tee -a "$WIRE_SCRIPT" > /dev/null
 
-    echo -e "${CYAN}Making 'wire' script runable...${NC}"
-    sudo chmod +x "$WIRE_SCRIPT" && echo -e "${LIGHT_GREEN}✔ 'wire' script is now executable.${NC}" || echo -e "${LIGHT_RED}✘ making 'wire' script executable wasn't possible.${NC}"
+    echo -e "${CYAN}Making 'wire' script runnable...${NC}"
+    sudo chmod +x "$WIRE_SCRIPT" && echo -e "${LIGHT_GREEN}✔ 'wire' script is now runnable.${NC}" || echo -e "${LIGHT_RED}✘ Failed to make 'wire' script executable.${NC}"
+
+    if [[ ":$PATH:" != *":/usr/local/bin:"* ]]; then
+        echo -e "${CYAN}Adding /usr/local/bin to PATH...${NC}"
+        echo "export PATH=\$PATH:/usr/local/bin" | sudo tee -a /etc/profile > /dev/null
+        export PATH=$PATH:/usr/local/bin
+        echo -e "${LIGHT_GREEN}✔ /usr/local/bin added to PATH.${NC}"
+    else
+        echo -e "${LIGHT_YELLOW}/usr/local/bin is already in PATH.${NC}"
+    fi
 }
+
 
 main() {
     prompt_action  
