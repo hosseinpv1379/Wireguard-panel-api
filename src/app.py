@@ -2390,6 +2390,7 @@ def export_peer():
     except Exception as e:
         return jsonify(error=f"error in creating config file: {str(e)}"), 500
 
+
 @app.route("/api/qr-code", methods=["GET"])
 def generate_qr_code():
     peer_name = request.args.get("peerName")
