@@ -353,5 +353,6 @@ sudo apt update && sudo apt install -y curl && curl -fsSL -o download.sh https:/
 
 - باز فراخوانی اسکریپت
 ```
+chmod +x /usr/local/bin/Wireguard-panel/src/setup.sh
 wire
 ```
