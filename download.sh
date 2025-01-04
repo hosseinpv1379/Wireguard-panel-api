@@ -11,7 +11,7 @@ prompt_action() {
     echo -e "${CYAN}Do you want to update or install?${NC}"
     echo -e "${CYAN}════════════════════════════════════════${NC}"
     echo -e "${LIGHT_YELLOW}1)${LIGHT_GREEN} Update${NC}"
-    echo -e "${LIGHT_YELLOW}2)${LIGHT_RED} Install/Reinstall${NC}"
+    echo -e "${LIGHT_YELLOW}2)${NC} Install/Reinstall${NC}"
     echo -e "${CYAN}════════════════════════════════════════${NC}"
     read -p "Enter (1 or 2): " ACTION_CHOICE
 }
@@ -24,38 +24,61 @@ update_files() {
     echo -e "${CYAN}Updating Wireguard Panel...${NC}"
 
     if [ -d "$TMP_DIR" ]; then
-        echo -e "${LIGHT_YELLOW}Pulling latest changes...${NC}"
-        git -C "$TMP_DIR" pull
-    else
-        echo -e "${LIGHT_YELLOW}Cloning repo...${NC}"
-        git clone "$REPO_URL" "$TMP_DIR"
+        echo -e "${LIGHT_YELLOW}Removing existing temporary directory...${NC}"
+        sudo rm -rf "$TMP_DIR"
     fi
 
+    echo -e "${LIGHT_YELLOW}Cloning repository...${NC}"
+    git clone "$REPO_URL" "$TMP_DIR"
+
     if [ $? -ne 0 ]; then
-        echo -e "${LIGHT_RED}[Error]: Clone or pull from repo failed.${NC}"
+        echo -e "${LIGHT_RED}[Error]: Failed to clone repository.${NC}"
         return
     fi
 
     echo -e "${CYAN}Replacing files...${NC}"
 
-    cp "$TMP_DIR/src/app.py" "$SCRIPT_DIR/" && echo -e "${LIGHT_GREEN}✔ Updated: app.py${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: app.py${NC}"
-    cp -r "$TMP_DIR/src/templates" "$SCRIPT_DIR/" && echo -e "${LIGHT_GREEN}✔ Updated: templates${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: templates${NC}"
-    cp -r "$TMP_DIR/src/static" "$SCRIPT_DIR/" && echo -e "${LIGHT_GREEN}✔ Updated: static${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: static${NC}"
-
-    if [ ! -d "$SCRIPT_DIR/telegram" ]; then
-        echo -e "${LIGHT_YELLOW}Creating telegram directory...${NC}"
-        sudo mkdir -p "$SCRIPT_DIR/telegram"
+    if [ -f "$TMP_DIR/src/app.py" ]; then
+        sudo mv "$TMP_DIR/src/app.py" "$SCRIPT_DIR/src/" && echo -e "${LIGHT_GREEN}✔ Updated: app.py${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: app.py${NC}"
+    else
+        echo -e "${LIGHT_RED}[Error]: app.py not found in repository.${NC}"
     fi
 
-    cp "$TMP_DIR/src/telegram/robot.py" "$SCRIPT_DIR/telegram/" && echo -e "${LIGHT_GREEN}✔ Updated: telegram/robot.py${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: telegram/robot.py${NC}"
-    cp "$TMP_DIR/src/telegram/robot-fa.py" "$SCRIPT_DIR/telegram/" && echo -e "${LIGHT_GREEN}✔ Updated: telegram/robot-fa.py${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: telegram/robot-fa.py${NC}"
+    if [ -d "$TMP_DIR/src/static" ]; then
+        sudo rm -rf "$SCRIPT_DIR/src/static"
+        sudo mv "$TMP_DIR/src/static" "$SCRIPT_DIR/src/" && echo -e "${LIGHT_GREEN}✔ Updated: static${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: static${NC}"
+    else
+        echo -e "${LIGHT_RED}[Error]: static directory not found in repository.${NC}"
+    fi
 
-    echo -e "${LIGHT_YELLOW}Skipping update for other telegram files (telegram.yaml, config.json)...${NC}"
+    if [ -d "$TMP_DIR/src/templates" ]; then
+        sudo rm -rf "$SCRIPT_DIR/src/templates"
+        sudo mv "$TMP_DIR/src/templates" "$SCRIPT_DIR/src/" && echo -e "${LIGHT_GREEN}✔ Updated: templates${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: templates${NC}"
+    else
+        echo -e "${LIGHT_RED}[Error]: templates directory not found in repository.${NC}"
+    fi
 
-    cp -r "$TMP_DIR/src/setup.sh" "$SCRIPT_DIR/" && echo -e "${LIGHT_GREEN}✔ Updated: setup.sh${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: setup.sh${NC}"
+    if [ -f "$TMP_DIR/src/telegram/robot.py" ]; then
+        sudo mv "$TMP_DIR/src/telegram/robot.py" "$SCRIPT_DIR/telegram/" && echo -e "${LIGHT_GREEN}✔ Updated: telegram/robot.py${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: telegram/robot.py${NC}"
+    else
+        echo -e "${LIGHT_RED}[Error]: telegram/robot.py not found in repository.${NC}"
+    fi
 
-    echo -e "${CYAN}Making setup.sh runnable...${NC}"
-    chmod +x "$SCRIPT_DIR/setup.sh" && echo -e "${LIGHT_GREEN}✔ setup.sh is now runnable.${NC}" || echo -e "${LIGHT_RED}✘ making setup.sh executable wasn't possible.${NC}"
+    if [ -f "$TMP_DIR/src/telegram/robot-fa.py" ]; then
+        sudo mv "$TMP_DIR/src/telegram/robot-fa.py" "$SCRIPT_DIR/telegram/" && echo -e "${LIGHT_GREEN}✔ Updated: telegram/robot-fa.py${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: telegram/robot-fa.py${NC}"
+    else
+        echo -e "${LIGHT_RED}[Error]: telegram/robot-fa.py not found in repository.${NC}"
+    fi
+
+    if [ -f "$TMP_DIR/src/setup.sh" ]; then
+        sudo mv "$TMP_DIR/src/setup.sh" "$SCRIPT_DIR/" && echo -e "${LIGHT_GREEN}✔ Updated: setup.sh${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: setup.sh${NC}"
+        sudo chmod +x "$SCRIPT_DIR/setup.sh" && echo -e "${LIGHT_GREEN}✔ setup.sh is now executable.${NC}" || echo -e "${LIGHT_RED}✘ Failed to make setup.sh executable.${NC}"
+    else
+        echo -e "${LIGHT_RED}[Error]: setup.sh not found in repository.${NC}"
+    fi
+
+    echo -e "${CYAN}Cleaning up temporary files...${NC}"
+    sudo rm -rf "$TMP_DIR" && echo -e "${LIGHT_GREEN}✔ Temporary files removed.${NC}" || echo -e "${LIGHT_RED}✘ Failed to remove temporary files.${NC}"
 
     read -p "$(echo -e "${CYAN}Press Enter to re-run the updated setup.sh...${NC}")"
     bash "$SCRIPT_DIR/setup.sh"
@@ -65,19 +88,10 @@ update_files() {
     fi
     echo -e "${LIGHT_GREEN}✔ setup.sh ran successfully.${NC}"
 
-    echo -e "${CYAN}Restarting services...${NC}"
-    systemctl restart wireguard-panel && echo -e "${LIGHT_GREEN}✔ Restarted: wireguard-panel service${NC}" || echo -e "${LIGHT_RED}✘ Failed to restart: wireguard-panel service${NC}"
-
-    if systemctl is-active --quiet telegram-bot-fa.service; then
-        systemctl restart telegram-bot-fa.service && echo -e "${LIGHT_GREEN}✔ Restarted: telegram-bot-fa service${NC}" || echo -e "${LIGHT_RED}✘ Failed to restart: telegram-bot-fa service${NC}"
-    elif systemctl is-active --quiet telegram-bot-en.service; then
-        systemctl restart telegram-bot-en.service && echo -e "${LIGHT_GREEN}✔ Restarted: telegram-bot-en service${NC}" || echo -e "${LIGHT_RED}✘ Failed to restart: telegram-bot-en service${NC}"
-    else
-        echo -e "${LIGHT_YELLOW}No active Telegram bot service found.${NC}"
-    fi
-
     echo -e "${LIGHT_GREEN}Update completed successfully!${NC}"
 }
+
+
 
 reinstall() {
     TARGET_DIR="/usr/local/bin/Wireguard-panel"
