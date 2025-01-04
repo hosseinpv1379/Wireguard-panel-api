@@ -383,23 +383,23 @@ uninstall_mnu() {
         return
     fi
 
-    BACKUP_DIR="$SCRIPT_DIR/uninstall_backups_$(date +%Y%m%d_%H%M%S)"
+    BACKUP_DIR="/etc/wire-backup/uninstall_backups_$(date +%Y%m%d_%H%M%S)"
     WIREGUARD_DIR="/etc/wireguard"
     SYSTEMD_SERVICE="/etc/systemd/system/wireguard-panel.service"
-    BIN_DIR="/usr/local/bin"
-    TELEGRAM_DIR="$SCRIPT_DIR/telegram"
+    PANEL_DIR="/usr/local/bin/Wireguard-panel"
+    WIRE_SCRIPT="/usr/local/bin/wire"
 
     echo -e "${INFO}[INFO]${YELLOW}Backing up data to $BACKUP_DIR...${NC}"
-    mkdir -p "$BACKUP_DIR"
+    sudo mkdir -p "$BACKUP_DIR"
 
     if [ -d "$SCRIPT_DIR/db" ]; then
-        cp -r "$SCRIPT_DIR/db" "$BACKUP_DIR/db" && echo -e "${SUCCESS}[SUCCESS]Database backed up successfully.${NC}" || echo -e "${ERROR}Couldn't back up database.${NC}"
+        sudo cp -r "$SCRIPT_DIR/db" "$BACKUP_DIR/db" && echo -e "${SUCCESS}[SUCCESS]Database backed up successfully.${NC}" || echo -e "${ERROR}Couldn't back up database.${NC}"
     else
         echo -e "${WARNING}No database found to back up.${NC}"
     fi
 
     if [ -d "$SCRIPT_DIR/backups" ]; then
-        cp -r "$SCRIPT_DIR/backups" "$BACKUP_DIR/backups" && echo -e "${SUCCESS}[SUCCESS]Backups directory saved successfully.${NC}" || echo -e "${ERROR}Couldn't back up backups directory.${NC}"
+        sudo cp -r "$SCRIPT_DIR/backups" "$BACKUP_DIR/backups" && echo -e "${SUCCESS}[SUCCESS]Backups directory saved successfully.${NC}" || echo -e "${ERROR}Couldn't back up backups directory.${NC}"
     else
         echo -e "${WARNING}No backups directory found to back up.${NC}"
     fi
@@ -450,33 +450,22 @@ uninstall_mnu() {
     fi
 
     echo -e "${INFO}[INFO]${YELLOW}Deleting Wireguard panel files and configs...${NC}"
-    rm -rf "$SCRIPT_DIR/db" "$SCRIPT_DIR/backups" "$SCRIPT_DIR/venv" "$SCRIPT_DIR/config.yaml" \
-        "$SCRIPT_DIR/install_telegram.sh" "$SCRIPT_DIR/install_telegram-fa.sh" || echo -e "${ERROR}Couldn't remove some files.${NC}"
-    sudo rm -rf "$BIN_DIR/wireguard-panel" || echo -e "${ERROR}Couldn't remove Wireguard panel files from /usr/local/bin.${NC}"
+    sudo rm -rf "$PANEL_DIR" && echo -e "${SUCCESS}[SUCCESS]Removed /usr/local/bin/Wireguard-panel directory.${NC}" || echo -e "${ERROR}Couldn't remove /usr/local/bin/Wireguard-panel directory.${NC}"
 
     if [ -d "$WIREGUARD_DIR" ]; then
         sudo rm -rf "$WIREGUARD_DIR" && echo -e "${SUCCESS}[SUCCESS]Wireguard configs removed successfully.${NC}" || echo -e "${ERROR}Couldn't remove Wireguard configurations.${NC}"
     fi
 
+    if [ -f "$WIRE_SCRIPT" ]; then
+        sudo rm -f "$WIRE_SCRIPT" && echo -e "${SUCCESS}[SUCCESS]Removed wire script from /usr/local/bin.${NC}" || echo -e "${ERROR}Couldn't remove wire script.${NC}"
+    else
+        echo -e "${WARNING}Wire script not found in /usr/local/bin.${NC}"
+    fi
+
     echo -e "${INFO}[INFO]${YELLOW}Freeing up space...${NC}"
     sudo apt autoremove -y && sudo apt autoclean -y && echo -e "${SUCCESS}[SUCCESS]Space cleared successfully.${NC}" || echo -e "${ERROR}Couldn't free up space.${NC}"
 
-    echo -e "\n${YELLOW}┌──────────────────────────────────────────────────────────────────────┐${NC}"
-    echo -e "${YELLOW}│                                                                      │${NC}"
-    echo -e "${YELLOW}│                  ${CYAN}Uninstallation Complete!${NC}                         ${YELLOW}   │${NC}"
-    echo -e "${YELLOW}│                                                                      │${NC}"
-    echo -e "${YELLOW}├──────────────────────────────────────────────────────────────────────┤${NC}"
-    echo -e "${YELLOW}│ ${GREEN}The Wireguard Panel and associated services have been ${NC}"
-    echo -e "${YELLOW}│ ${GREEN}successfully removed.${NC}"
-    echo -e "${YELLOW}│                                                           ${NC}"
-    echo -e "${YELLOW}│ ${RED}NOTE:${NC} The script itself has not been removed.             ${NC}"
-    echo -e "${YELLOW}│ You can manually delete it later using:                   ${NC}"
-    echo -e "${YELLOW}│ ${GREEN}rm -f $SCRIPT_DIR/$(basename "$0")${NC}"
-    echo -e "${YELLOW}│                                                           ${NC}"
-    echo -e "${YELLOW}│ ${CYAN}All backups have been saved in:                        ${NC}"
-    echo -e "${YELLOW}│ ${GREEN}$BACKUP_DIR${NC}"
-    echo -e "${YELLOW}│                                                           ${NC}"
-    echo -e "${YELLOW}└──────────────────────────────────────────────────────────────────────┘${NC}"
+    echo -e "\n${YELLOW}Uninstallation Complete! Backups saved to: ${GREEN}$BACKUP_DIR${NC}"
     echo -e "${CYAN}Press Enter to exit...${NC}" && read
 }
 
