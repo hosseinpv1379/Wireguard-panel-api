@@ -123,7 +123,7 @@ display_menu() {
 
     TELEGRAM_SERVICES_ACTIVE=0
     if [ "$(systemctl is-active telegram-bot-fa.service)" == "active" ]; then
-        echo -e "  ${GREEN}✔ Telegram Bot FA service is ative!${NC}"
+        echo -e "  ${GREEN}✔ Telegram Bot FA service is active!${NC}"
         TELEGRAM_SERVICES_ACTIVE=$((TELEGRAM_SERVICES_ACTIVE + 1))
     fi
     if [ "$(systemctl is-active telegram-bot-en.service)" == "active" ]; then
@@ -141,8 +141,7 @@ display_menu() {
         FLASK_TLS=$(grep 'flask:' "$SCRIPT_DIR/config.yaml" -A 5 | grep 'tls:' | awk '{print $2}')
         FLASK_URL=""
 
-        MAIN_INTERFACE=$(ip -o -4 addr show | awk '{print $2}' | head -n 1)
-        IPV4_ADDRESS=$(ip -o -4 addr show $MAIN_INTERFACE | awk '{print $4}' | cut -d'/' -f1)
+        PUBLIC_IPV4_ADDRESS=$(curl -s -4 https://icanhazip.com)
 
         echo -e "${CYAN}╔═════════════════════════ ${YELLOW}Flask Information${CYAN} ═════════════════════════╗${NC}"
         if [ "$FLASK_TLS" == "true" ]; then
@@ -151,11 +150,11 @@ display_menu() {
             echo -e "  ${LIGHT_GREEN}✔ Flask is running with TLS enabled!${NC}"
             echo -e "  ${CYAN}Homepage: ${NC}https://${YELLOW}${FLASK_URL}${NC}"
         else
-            if [ ! -z "$IPV4_ADDRESS" ]; then
+            if [ ! -z "$PUBLIC_IPV4_ADDRESS" ]; then
                 echo -e "  ${YELLOW}✔ Flask is running without TLS!${NC}"
-                echo -e "  ${CYAN}Homepage: ${YELLOW}${IPV4_ADDRESS}:${FLASK_PORT}${NC}"
+                echo -e "  ${CYAN}Homepage: ${YELLOW}${PUBLIC_IPV4_ADDRESS}:${FLASK_PORT}${NC}"
             else
-                echo -e "  ${RED}✖ No IP address found for Flask!${NC}"
+                echo -e "  ${RED}✖ No public IP address found for Flask!${NC}"
             fi
         fi
         echo -e "${CYAN}╚═════════════════════════════════════════════════════════════════════╝${NC}"
@@ -166,6 +165,7 @@ display_menu() {
     echo -e "${CYAN}═════════════════════════════════════════════════════════════════════${NC}"
     echo -e "${GREEN} Options:${NC}"
     echo -e "${WHITE}  0)${CYAN} View Detailed Wireguard Status${NC}"
+    echo -e "${WHITE}  s)${GREEN} Show Logs${NC}"
     echo -e "${WHITE}  1)${YELLOW} IPV4/6 Forward${NC}"
     echo -e "${WHITE}  2)${GREEN} Install Requirements${NC}"
     echo -e "${WHITE}  3)${YELLOW} Set up Virtual Environment${NC}"
@@ -175,14 +175,17 @@ display_menu() {
     echo -e "${WHITE}  7)${YELLOW} Set up Wireguard Panel as a Service${NC}"
     echo -e "${WHITE}  8)${RED} Uninstall${NC}"
     echo -e "${WHITE}  9)${CYAN} Restart Wireguard Panel or Telegram Bot${NC}"
+    echo -e "${WHITE}  10)${GREEN} Update Panel${NC}" 
     echo -e "${WHITE}  q)${RED} Exit${NC}"
     echo -e "${CYAN}═════════════════════════════════════════════════════════════════════${NC}"
 }
 
 
+
 select_stuff() {
     case $1 in
         0) wireguard_detailed_stats ;;
+        s) show_logs ;;
         1) sysctl_menu ;;
         2) install_requirements ;;
         3) setup_virtualenv ;;
@@ -192,9 +195,135 @@ select_stuff() {
         7) wireguard_panel ;;
         8) uninstall_mnu ;;
         9) restart_services ;;
+        10) update_files ;;
         q) echo -e "${LIGHT_GREEN}Exiting...${NC}" && exit 0 ;;
         *) echo -e "${RED}Wrong choice. Please choose a valid option.${NC}" ;;
     esac
+}
+
+update_files() {
+    REPO_URL="https://github.com/Azumi67/Wireguard-panel.git"
+    TMP_DIR="/tmp/wireguard-panel-update"
+    SCRIPT_DIR="/usr/local/bin/Wireguard-panel"
+
+    echo -e "${CYAN}Updating Wireguard Panel...${NC}"
+
+    if [ -d "$TMP_DIR" ]; then
+        echo -e "${LIGHT_YELLOW}Pulling latest changes...${NC}"
+        git -C "$TMP_DIR" pull
+    else
+        echo -e "${LIGHT_YELLOW}Cloning repo...${NC}"
+        git clone "$REPO_URL" "$TMP_DIR"
+    fi
+
+    if [ $? -ne 0 ]; then
+        echo -e "${LIGHT_RED}[Error]: Clone or pull from repo failed.${NC}"
+        return
+    fi
+
+    echo -e "${CYAN}Replacing files...${NC}"
+
+    cp "$TMP_DIR/src/app.py" "$SCRIPT_DIR/" && echo -e "${LIGHT_GREEN}✔ Updated: app.py${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: app.py${NC}"
+    cp -r "$TMP_DIR/src/templates" "$SCRIPT_DIR/" && echo -e "${LIGHT_GREEN}✔ Updated: templates${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: templates${NC}"
+    cp -r "$TMP_DIR/src/static" "$SCRIPT_DIR/" && echo -e "${LIGHT_GREEN}✔ Updated: static${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: static${NC}"
+
+    if [ ! -d "$SCRIPT_DIR/telegram" ]; then
+        echo -e "${LIGHT_YELLOW}Creating telegram directory...${NC}"
+        sudo mkdir -p "$SCRIPT_DIR/telegram"
+    fi
+
+    cp "$TMP_DIR/src/telegram/robot.py" "$SCRIPT_DIR/telegram/" && echo -e "${LIGHT_GREEN}✔ Updated: telegram/robot.py${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: telegram/robot.py${NC}"
+    cp "$TMP_DIR/src/telegram/robot-fa.py" "$SCRIPT_DIR/telegram/" && echo -e "${LIGHT_GREEN}✔ Updated: telegram/robot-fa.py${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: telegram/robot-fa.py${NC}"
+
+    echo -e "${LIGHT_YELLOW}Skipping update for other telegram files (telegram.yaml, config.json)...${NC}"
+
+    cp -r "$TMP_DIR/src/setup.sh" "$SCRIPT_DIR/" && echo -e "${LIGHT_GREEN}✔ Updated: setup.sh${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: setup.sh${NC}"
+
+    echo -e "${CYAN}Making setup.sh runnable...${NC}"
+    chmod +x "$SCRIPT_DIR/setup.sh" && echo -e "${LIGHT_GREEN}✔ setup.sh is now runnable.${NC}" || echo -e "${LIGHT_RED}✘ making setup.sh executable wasn't possible.${NC}"
+
+    read -p "$(echo -e "${CYAN}Press Enter to re-run the updated setup.sh...${NC}")"
+    bash "$SCRIPT_DIR/setup.sh"
+    if [ $? -ne 0 ]; then
+        echo -e "${LIGHT_RED}✘ Running setup.sh failed. Please check the script for errors.${NC}"
+        return
+    fi
+    echo -e "${LIGHT_GREEN}✔ setup.sh ran successfully.${NC}"
+
+    echo -e "${CYAN}Restarting services...${NC}"
+    systemctl restart wireguard-panel && echo -e "${LIGHT_GREEN}✔ Restarted: wireguard-panel service${NC}" || echo -e "${LIGHT_RED}✘ Failed to restart: wireguard-panel service${NC}"
+
+    if systemctl is-active --quiet telegram-bot-fa.service; then
+        systemctl restart telegram-bot-fa.service && echo -e "${LIGHT_GREEN}✔ Restarted: telegram-bot-fa service${NC}" || echo -e "${LIGHT_RED}✘ Failed to restart: telegram-bot-fa service${NC}"
+    elif systemctl is-active --quiet telegram-bot-en.service; then
+        systemctl restart telegram-bot-en.service && echo -e "${LIGHT_GREEN}✔ Restarted: telegram-bot-en service${NC}" || echo -e "${LIGHT_RED}✘ Failed to restart: telegram-bot-en service${NC}"
+    else
+        echo -e "${LIGHT_YELLOW}No active Telegram bot service found.${NC}"
+    fi
+
+    echo -e "${LIGHT_GREEN}Update completed successfully!${NC}"
+}
+
+
+show_logs() {
+    echo -e "${CYAN}═════════════════════════════════════════════════════════════════════${NC}"
+    echo -e "${GREEN}Log Options${YELLOW} (Press q to exit logs view):${NC}"
+    echo -e "${WHITE}  1)${CYAN} Show Service Logs (Wireguard Panel)${NC}"
+    echo -e "${WHITE}  2)${YELLOW} Show Flask Logs (Last 30 Lines)${NC}"
+
+    if systemctl is-active --quiet telegram-bot-fa.service; then
+        echo -e "${WHITE}  3)${GREEN} Show Telegram Logs (telegram-bot-fa)${NC}"
+        telegram_service="telegram-bot-fa"
+    elif systemctl is-active --quiet telegram-bot-en.service; then
+        echo -e "${WHITE}  3)${GREEN} Show Telegram Logs (telegram-bot-en)${NC}"
+        telegram_service="telegram-bot-en"
+    else
+        echo -e "${WHITE}  3)${RED} No Active Telegram Service Found${NC}"
+        telegram_service=""
+    fi
+
+    echo -e "${WHITE}  b)${RED} Back to Main Menu${NC}"
+    echo -e "${CYAN}═════════════════════════════════════════════════════════════════════${NC}"
+
+    read -rp "Choose an option: " log_choice
+
+    case $log_choice in
+        1) show_service_logs ;;  
+        2) show_flask_logs ;;   
+        3)
+            if [ -n "$telegram_service" ]; then
+                show_telegram_logs "$telegram_service"
+            else
+                echo -e "${RED}No active Telegram service to show logs.${NC}"
+            fi
+            ;;
+        b) return ;;  
+        *) echo -e "${RED}Choice is not valid. Returning to the main menu...${NC}" ;;
+    esac
+}
+
+
+show_telegram_logs() {
+    service_name=$1
+    echo -e "${CYAN}Displaying logs for ${GREEN}${service_name}${CYAN}...${NC}"
+    journalctl -u "$service_name" --no-pager -n 50 | less
+}
+
+
+show_service_logs() {
+    echo -e "${INFO}[INFO]Displaying Wireguard Panel service logs...${NC}"
+    journalctl -u wireguard-panel.service --no-pager -n 50 | less
+}
+
+show_flask_logs() {
+    LOG_FILE="$SCRIPT_DIR/wireguard.log"
+
+    if [ -f "$LOG_FILE" ]; then
+        echo -e "${CYAN}Last 30 lines of Flask logs from ${YELLOW}$LOG_FILE${CYAN}:${NC}"
+        tail -n 30 "$LOG_FILE" | less
+    else
+        echo -e "${RED}Error: Log file not found at ${YELLOW}$LOG_FILE${RED}.${NC}"
+    fi
 }
 
 restart_services() {
@@ -1028,8 +1157,7 @@ sysctl_menu() {
 
 while true; do
     display_menu
-    echo -e "${NC}choose an option [1-9]:${NC} \c"
+    echo -e "${NC}choose an option [0-10]:${NC} \c"
     read -r USER_CHOICE
     select_stuff "$USER_CHOICE"
 done
-
