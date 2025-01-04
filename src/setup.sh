@@ -215,13 +215,20 @@ update_files() {
 
     echo -e "${LIGHT_YELLOW}Cloning repository...${NC}"
     git clone "$REPO_URL" "$TMP_DIR"
-
     if [ $? -ne 0 ]; then
         echo -e "${LIGHT_RED}[Error]: Failed to clone repository.${NC}"
         return
     fi
 
     echo -e "${CYAN}Replacing files...${NC}"
+
+    if [ -f "$SCRIPT_DIR/src/telegram/robot.py" ]; then
+        sudo rm "$SCRIPT_DIR/src/telegram/robot.py" && echo -e "${LIGHT_GREEN}✔ Removed: telegram/robot.py${NC}" || echo -e "${LIGHT_RED}✘ Failed to remove: telegram/robot.py${NC}"
+    fi
+
+    if [ -f "$SCRIPT_DIR/src/telegram/robot-fa.py" ]; then
+        sudo rm "$SCRIPT_DIR/src/telegram/robot-fa.py" && echo -e "${LIGHT_GREEN}✔ Removed: telegram/robot-fa.py${NC}" || echo -e "${LIGHT_RED}✘ Failed to remove: telegram/robot-fa.py${NC}"
+    fi
 
     if [ -f "$TMP_DIR/src/app.py" ]; then
         sudo mv "$TMP_DIR/src/app.py" "$SCRIPT_DIR/src/" && echo -e "${LIGHT_GREEN}✔ Updated: app.py${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: app.py${NC}"
@@ -244,20 +251,20 @@ update_files() {
     fi
 
     if [ -f "$TMP_DIR/src/telegram/robot.py" ]; then
-        sudo mv "$TMP_DIR/src/telegram/robot.py" "$SCRIPT_DIR/telegram/" && echo -e "${LIGHT_GREEN}✔ Updated: telegram/robot.py${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: telegram/robot.py${NC}"
+        sudo mv "$TMP_DIR/src/telegram/robot.py" "$SCRIPT_DIR/src/telegram/" && echo -e "${LIGHT_GREEN}✔ Updated: telegram/robot.py${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: telegram/robot.py${NC}"
     else
         echo -e "${LIGHT_RED}[Error]: telegram/robot.py not found in repository.${NC}"
     fi
 
     if [ -f "$TMP_DIR/src/telegram/robot-fa.py" ]; then
-        sudo mv "$TMP_DIR/src/telegram/robot-fa.py" "$SCRIPT_DIR/telegram/" && echo -e "${LIGHT_GREEN}✔ Updated: telegram/robot-fa.py${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: telegram/robot-fa.py${NC}"
+        sudo mv "$TMP_DIR/src/telegram/robot-fa.py" "$SCRIPT_DIR/src/telegram/" && echo -e "${LIGHT_GREEN}✔ Updated: telegram/robot-fa.py${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: telegram/robot-fa.py${NC}"
     else
         echo -e "${LIGHT_RED}[Error]: telegram/robot-fa.py not found in repository.${NC}"
     fi
 
     if [ -f "$TMP_DIR/src/setup.sh" ]; then
-        sudo mv "$TMP_DIR/src/setup.sh" "$SCRIPT_DIR/" && echo -e "${LIGHT_GREEN}✔ Updated: setup.sh${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: setup.sh${NC}"
-        sudo chmod +x "$SCRIPT_DIR/setup.sh" && echo -e "${LIGHT_GREEN}✔ setup.sh is now executable.${NC}" || echo -e "${LIGHT_RED}✘ Failed to make setup.sh executable.${NC}"
+        sudo mv "$TMP_DIR/src/setup.sh" "$SCRIPT_DIR/src/" && echo -e "${LIGHT_GREEN}✔ Updated: setup.sh${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: setup.sh${NC}"
+        sudo chmod +x "$SCRIPT_DIR/src/setup.sh" && echo -e "${LIGHT_GREEN}✔ setup.sh is now executable.${NC}" || echo -e "${LIGHT_RED}✘ Failed to make setup.sh executable.${NC}"
     else
         echo -e "${LIGHT_RED}[Error]: setup.sh not found in repository.${NC}"
     fi
@@ -266,13 +273,15 @@ update_files() {
     sudo rm -rf "$TMP_DIR" && echo -e "${LIGHT_GREEN}✔ Temporary files removed.${NC}" || echo -e "${LIGHT_RED}✘ Failed to remove temporary files.${NC}"
 
     read -p "$(echo -e "${CYAN}Press Enter to re-run the updated setup.sh...${NC}")"
-    bash "$SCRIPT_DIR/setup.sh"
+    echo -e "${CYAN}Running setup.sh from the directory...${NC}"
+    cd "$SCRIPT_DIR/src" || { echo -e "${LIGHT_RED}[Error]: Failed to navigate to $SCRIPT_DIR/src.${NC}"; return; }
+    sudo ./setup.sh
     if [ $? -ne 0 ]; then
-        echo -e "${LIGHT_RED}✘ Running setup.sh failed. Please check the script for errors.${NC}"
+        echo -e "${LIGHT_RED}✘ setup.sh execution failed. Please check the script for errors.${NC}"
         return
     fi
-    echo -e "${LIGHT_GREEN}✔ setup.sh ran successfully.${NC}"
 
+    echo -e "${LIGHT_GREEN}✔ setup.sh ran successfully.${NC}"
     echo -e "${LIGHT_GREEN}Update completed successfully!${NC}"
 }
 
