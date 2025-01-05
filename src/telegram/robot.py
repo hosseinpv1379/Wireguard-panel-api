@@ -12,6 +12,7 @@ from telegram.ext import filters
 from telegram import ReplyKeyboardRemove
 from telegram.ext import ApplicationBuilder
 import asyncio
+from cryptography.fernet import Fernet
 import yaml
 from telegram import InputFile
 import re
@@ -79,27 +80,49 @@ INPUT_MTU = 55
 
 
 def load_telegram_yaml():
-    yaml_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "telegram.yaml")
+    telegram_dir = os.path.dirname(os.path.abspath(__file__))
+    yaml_path = os.path.join(telegram_dir, "telegram.yaml")
+    secret_key_path = os.path.join(os.path.dirname(telegram_dir), "secret.key")
+
     try:
+        if not os.path.exists(secret_key_path):
+            raise FileNotFoundError(f"Secret key file not found at {secret_key_path}")
+        
+        with open(secret_key_path, "rb") as key_file:
+            key = key_file.read()
+        cipher = Fernet(key)
+
+        if not os.path.exists(yaml_path):
+            raise FileNotFoundError(f"Config file not found at {yaml_path}")
+        
         with open(yaml_path, "r") as file:
-            config = yaml.safe_load(file)
-            print(f"Loaded admin_chat_id: {config.get('admin_chat_id')}")
-            return {
-                "admin_chat_id": config.get("admin_chat_id", None),
-            }
-    except FileNotFoundError:
-        print(f"❌ Config file {yaml_path} not found.")
+            config = yaml.safe_load(file) or {}  
+            encrypted_chat_ids = config.get("admin_chat_ids", [])
+
+            if not encrypted_chat_ids:
+                print("No admin chat IDs found in telegram.yaml.")
+                return {"admin_chat_ids": []}
+            
+            chat_ids = [cipher.decrypt(chat_id.encode()).decode() for chat_id in encrypted_chat_ids]
+            print(f"Decrypted admin_chat_ids: {chat_ids}")
+
+            return {"admin_chat_ids": chat_ids}
+
+    except FileNotFoundError as e:
+        print(f"❌ Config file {yaml_path} or key file {secret_key_path} not found. Error: {e}")
         raise
-    except yaml.YAMLError as e:
-        print(f"❌ Invalid YAML in {yaml_path}. {e}")
+    except Exception as e:
+        print(f"❌ Error loading or decrypting {yaml_path}: {e}")
         raise
 
 
 def is_authorized(chat_id):
     config = load_telegram_yaml()
-    admin_chat_id = config["admin_chat_id"]
-    print(f"Checking authorization for chat_id: {chat_id}, admin_chat_id: {admin_chat_id}")
-    return str(chat_id) == str(admin_chat_id)
+    admin_chat_ids = config["admin_chat_ids"]  
+
+    print(f"Checking authorization for chat_id: {chat_id}, admin_chat_ids: {admin_chat_ids}")
+    return str(chat_id) in map(str, admin_chat_ids)  
+
 
 
 def load_config():
@@ -176,29 +199,30 @@ async def api_stuff(endpoint, method="GET", data=None, context=None, retries=3, 
                     return {"error": f"Request timed out after {retries} attempts"}
 
 
-def load_chat_id():
+def load_chat_ids():
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, "r") as file:
             data = yaml.safe_load(file)
-            return data.get("admin_chat_id", None)
-    return None
+            return data.get("admin_chat_ids", [])  
+    return []
 
-def save_chat_id(chat_id):
+def save_chat_ids(chat_ids):
     config = load_telegram_yaml()  
-    config["admin_chat_id"] = chat_id  
-    with open(CONFIG_FILE, "w") as file:
-        yaml.dump(config, file, default_flow_style=False, indent=4) 
-
-
-def clear_chat_id():
-    config = load_telegram_yaml() 
-    if "admin_chat_id" in config:
-        del config["admin_chat_id"]  
+    config["admin_chat_ids"] = chat_ids  
     with open(CONFIG_FILE, "w") as file:
         yaml.dump(config, file, default_flow_style=False, indent=4)  
 
-admin_chat_id = load_chat_id()
+def clear_chat_ids():
+    config = load_telegram_yaml() 
+    if "admin_chat_ids" in config:
+        del config["admin_chat_ids"]  
+    with open(CONFIG_FILE, "w") as file:
+        yaml.dump(config, file, default_flow_style=False, indent=4)  
+
+admin_chat_ids = load_chat_ids()  
+
 current_status = {"status": "inactive"}
+
 async def monitor_health(context: CallbackContext):
     global current_status
     endpoint = "api/health"
@@ -207,31 +231,39 @@ async def monitor_health(context: CallbackContext):
         response = await api_stuff(endpoint)
         new_status = "running" if response.get("status") == "running" else "inactive"
     except Exception:
-        new_status = "inactive"  
+        new_status = "inactive"
 
     if new_status != current_status["status"]:
         current_status["status"] = new_status
-        if admin_chat_id:
-            try:
-                if new_status == "inactive":
-                    await context.bot.send_message(
-                        chat_id=admin_chat_id,
-                        text="⚠️ *Alert*: Program has gone *inactive*. Wake up!.",
-                        parse_mode="Markdown"
-                    )
-                elif new_status == "running":
-                    await context.bot.send_message(
-                        chat_id=admin_chat_id,
-                        text="✅ *Alert*: Program is back *online* and operational.",
-                        parse_mode="Markdown"
-                    )
-            except Exception as e:
-                print(f"Notifying admin failed: {e}")
+        try:
+            config = load_telegram_yaml()
+            admin_chat_ids = config.get("admin_chat_ids", [])
+
+            for chat_id in admin_chat_ids:
+                try:
+                    if new_status == "inactive":
+                        await context.bot.send_message(
+                            chat_id=chat_id,
+                            text="⚠️ *Alert*: Program has gone *inactive*. Wake up!",
+                            parse_mode="Markdown"
+                        )
+                    elif new_status == "running":
+                        await context.bot.send_message(
+                            chat_id=chat_id,
+                            text="✅ *Alert*: Program is back *online* and operational.",
+                            parse_mode="Markdown"
+                        )
+                except Exception as e:
+                    print(f"Failed to notify chat_id {chat_id}: {e}")
+
+        except Exception as e:
+            print(f"Error loading admin chat IDs or sending notifications: {e}")
 
     try:
-        context.job_queue.run_once(monitor_health, 10) 
+        context.job_queue.run_once(monitor_health, 10)
     except Exception as e:
         print(f"Rescheduling health monitor failed: {e}")
+
 
 
 async def start_login(update: Update, context: CallbackContext):
@@ -298,11 +330,18 @@ async def login_password(update: Update, context: CallbackContext):
 
 async def auto_message(context: ContextTypes.DEFAULT_TYPE):
     config = load_telegram_yaml()
-    chat_id = config.get("admin_chat_id")
-    if not chat_id:
-        print("❌ Admin chat ID not found in config.json.")
+    admin_chat_ids = config.get("admin_chat_ids", [])
+
+    if not admin_chat_ids:
+        print("❌ Admin chat IDs not found in telegram.yaml.")
         return
-    await start(context=context, chat_id=chat_id)
+
+    for chat_id in admin_chat_ids:
+        try:
+            await start(context=context, chat_id=chat_id)
+        except Exception as e:
+            print(f"❌ Failed to send auto message to chat_id {chat_id}: {e}")
+
 
 
 def flask_status():
@@ -329,12 +368,15 @@ def flask_status():
 
     
 async def start(update: Update = None, context: CallbackContext = None, chat_id: int = None):
-    global current_status, admin_chat_id
+    global current_status
 
     if chat_id is None:
         chat_id = update.effective_chat.id if update else None
 
-    if not is_authorized(chat_id):
+    config = load_telegram_yaml()
+    admin_chat_ids = config.get("admin_chat_ids", [])
+
+    if not str(chat_id) in map(str, admin_chat_ids):  
         await context.bot.send_message(
             chat_id=chat_id,
             text="❌ You are not authorized to perform this action.",
@@ -354,7 +396,7 @@ async def start(update: Update = None, context: CallbackContext = None, chat_id:
     status_message = (
         f"{status_icon} Program Status: {'🟢 Running' if current_status['status'] == 'running' else '🔴 Inactive'}"
     )
-    notification_status = "✅ Enabled" if admin_chat_id else "❌ Disabled"
+    notification_status = "✅ Enabled" if admin_chat_ids else "❌ Disabled"
 
     caption_text = (
         f"<b>Welcome to the Wireguard Manager Bot</b>\n\n"
@@ -403,6 +445,7 @@ async def start(update: Update = None, context: CallbackContext = None, chat_id:
             chat_id=chat_id,
             text="❌ Unable to send the image.",
         )
+
 
 
 
@@ -713,7 +756,6 @@ async def apply_config(update: Update, context: CallbackContext):
     return CONFIG_INTERFACE
 
 async def enable_notifications(update: Update, context: CallbackContext):
-    global admin_chat_id
     chat_id = update.effective_chat.id
 
     if not is_authorized(chat_id):
@@ -724,21 +766,23 @@ async def enable_notifications(update: Update, context: CallbackContext):
         )
         return
 
-    admin_chat_id = chat_id
-    save_chat_id(chat_id)
+    config = load_telegram_yaml()
+    admin_chat_ids = config.get("admin_chat_ids", [])
+    if str(chat_id) not in map(str, admin_chat_ids):
+        admin_chat_ids.append(str(chat_id))
+        save_chat_ids(admin_chat_ids)
+
     keyboard = [[InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.callback_query.answer()
     await update.callback_query.message.reply_text(
-        f"✅ Notifications have been enabled. Admin chat ID set to: `{chat_id}`",
+        f"✅ Notifications have been enabled. Admin chat ID added: `{chat_id}`",
         parse_mode="Markdown",
         reply_markup=reply_markup
     )
-
 
 async def disable_notifications(update: Update, context: CallbackContext):
-    global admin_chat_id
     chat_id = update.effective_chat.id
 
     if not is_authorized(chat_id):
@@ -749,16 +793,21 @@ async def disable_notifications(update: Update, context: CallbackContext):
         )
         return
 
-    context.bot_data['notifications_enabled'] = False 
+    config = load_telegram_yaml()
+    admin_chat_ids = config.get("admin_chat_ids", [])
+    admin_chat_ids = [id_ for id_ in admin_chat_ids if str(id_) != str(chat_id)]
+    save_chat_ids(admin_chat_ids)
+
     keyboard = [[InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.callback_query.answer()
     await update.callback_query.message.reply_text(
-        "❌ Notifications have been disabled.\n\nYou can re-enable them from the main menu.",
+        f"❌ Notifications have been disabled for this chat.\n\nYou can re-enable them from the main menu.",
         parse_mode="Markdown",
         reply_markup=reply_markup
     )
+
 
 def register_notification(application):
     application.add_handler(CallbackQueryHandler(enable_notifications, pattern="enable_notifications"))
