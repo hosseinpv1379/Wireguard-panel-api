@@ -227,6 +227,11 @@ async def monitor_health(context: CallbackContext):
     global current_status
     endpoint = "api/health"
 
+    notifications_enabled = context.bot_data.get("notifications_enabled", False)  
+    if not notifications_enabled:
+        print("Health monitoring is disabled.")
+        return
+
     try:
         response = await api_stuff(endpoint)
         new_status = "running" if response.get("status") == "running" else "inactive"
@@ -396,7 +401,9 @@ async def start(update: Update = None, context: CallbackContext = None, chat_id:
     status_message = (
         f"{status_icon} Program Status: {'🟢 Running' if current_status['status'] == 'running' else '🔴 Inactive'}"
     )
-    notification_status = "✅ Enabled" if admin_chat_ids else "❌ Disabled"
+
+    notifications_enabled = context.bot_data.get("notifications_enabled", False)  
+    notification_status = "✅ Enabled" if notifications_enabled else "❌ Disabled"
 
     caption_text = (
         f"<b>Welcome to the Wireguard Manager Bot</b>\n\n"
@@ -445,7 +452,6 @@ async def start(update: Update = None, context: CallbackContext = None, chat_id:
             chat_id=chat_id,
             text="❌ Unable to send the image.",
         )
-
 
 
 
@@ -766,18 +772,16 @@ async def enable_notifications(update: Update, context: CallbackContext):
         )
         return
 
-    config = load_telegram_yaml()
-    admin_chat_ids = config.get("admin_chat_ids", [])
-    if str(chat_id) not in map(str, admin_chat_ids):
-        admin_chat_ids.append(str(chat_id))
-        save_chat_ids(admin_chat_ids)
+    context.bot_data["notifications_enabled"] = True
+
+    context.job_queue.run_once(monitor_health, 10, name="monitor_health")
 
     keyboard = [[InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.callback_query.answer()
     await update.callback_query.message.reply_text(
-        f"✅ Notifications have been enabled. Admin chat ID added: `{chat_id}`",
+        f"✅ Notifications have been enabled.",
         parse_mode="Markdown",
         reply_markup=reply_markup
     )
@@ -793,20 +797,23 @@ async def disable_notifications(update: Update, context: CallbackContext):
         )
         return
 
-    config = load_telegram_yaml()
-    admin_chat_ids = config.get("admin_chat_ids", [])
-    admin_chat_ids = [id_ for id_ in admin_chat_ids if str(id_) != str(chat_id)]
-    save_chat_ids(admin_chat_ids)
+    context.bot_data["notifications_enabled"] = False
+
+    current_jobs = context.job_queue.jobs()
+    for job in current_jobs:
+        if job.name == "monitor_health":
+            job.schedule_removal()
 
     keyboard = [[InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.callback_query.answer()
     await update.callback_query.message.reply_text(
-        f"❌ Notifications have been disabled for this chat.\n\nYou can re-enable them from the main menu.",
+        f"❌ Notifications have been disabled.\n\nYou can re-enable them from the main menu.",
         parse_mode="Markdown",
         reply_markup=reply_markup
     )
+
 
 
 def register_notification(application):
@@ -2652,6 +2659,7 @@ def main():
     .read_timeout(30.0)     
     .build()
 )
+    application.bot_data = {"notifications_enabled": True} 
 
     block_unblock_stuff = ConversationHandler(
     entry_points=[CallbackQueryHandler(block_unblock_peer, pattern="block_unblock_peer")],
