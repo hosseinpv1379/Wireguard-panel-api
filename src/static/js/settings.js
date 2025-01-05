@@ -175,23 +175,25 @@ async function loadSettings() {
         }
 
         document.getElementById('updateCustomIpForm').addEventListener('submit', async (event) => {
-            event.preventDefault();
-            const customIp = document.getElementById('customIp').value;
-            try {
-                const response = await fetch('/api/update-custom-ip', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ custom_ip: customIp })
-                });
-                const result = await response.json();
-                if (!response.ok) throw new Error(result.message || "updating custom IP failed");
-                showAlert(result.message);
-                loadCustomIp(); 
-            } catch (error) {
-                console.error('updating custom IP error:', error);
-                showAlert(`updating custom IP error: ${error.message}`);
-            }
+    event.preventDefault();
+    const customIp = document.getElementById('customIp').value.trim();
+
+    try {
+        const response = await fetch('/api/update-custom-ip', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ custom_ip: customIp })
         });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || "Updating custom IP/Subdomain failed");
+        showAlert(result.message);
+        loadCustomIp();
+    } catch (error) {
+        console.error('Updating custom IP/Subdomain error:', error);
+        showAlert(`Updating custom IP/Subdomain error: ${error.message}`);
+    }
+});
+
         function showAlert(message) {
     const alertModal = document.getElementById("alertModal");
     const alertMessage = document.getElementById("alertMessage");
