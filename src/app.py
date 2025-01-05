@@ -672,6 +672,7 @@ def delete_api_key(index):
 def save_telegram_config():
     try:
         data = request.json
+
         bot_token = data.get("bot_token")
         base_url = data.get("base_url")
         api_key = data.get("api_key")
@@ -682,13 +683,23 @@ def save_telegram_config():
 
         encrypted_chat_ids = [cipher.encrypt(chat_id.encode()).decode() for chat_id in admin_chat_ids]
 
+        json_config = {
+            "bot_token": bot_token,
+            "base_url": base_url,
+            "api_key": api_key,
+        }
+        with open(TELEGRAM_CONFIG_JSON, "w") as json_file:
+            json.dump(json_config, json_file, indent=4)
+
         yaml_config = {"admin_chat_ids": encrypted_chat_ids}
         with open(TELEGRAM_CONFIG_FILE, "w") as yaml_file:
             yaml.safe_dump(yaml_config, yaml_file)
 
         return jsonify({"message": "Telegram config saved successfully!"})
+
     except Exception as e:
         return jsonify({"message": "Couldn't save config.", "error": str(e)}), 500
+
 
 
 
@@ -4500,5 +4511,3 @@ if __name__ == "__main__":
         logging.info("Shutting down application.")
         if scheduler:
             scheduler.shutdown(wait=False)
-
-
