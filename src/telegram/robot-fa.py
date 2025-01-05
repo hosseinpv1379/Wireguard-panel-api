@@ -397,16 +397,17 @@ async def start(update: Update = None, context: CallbackContext = None, chat_id:
 
     keyboard = [
         [
-            InlineKeyboardButton("🔔 فعال کردن اعلان‌ها", callback_data="enable_notifications"),
             InlineKeyboardButton("🔕 غیرفعال کردن اعلان‌ها", callback_data="disable_notifications"),
+            InlineKeyboardButton("🔔 فعال کردن اعلان‌ها", callback_data="enable_notifications"),
+            
         ],
         [
-            InlineKeyboardButton("👥 کاربران", callback_data="peers_menu"),
             InlineKeyboardButton("📊 آمار", callback_data="metrics"),
+            InlineKeyboardButton("👥 کاربران", callback_data="peers_menu"),
         ],
         [
-            InlineKeyboardButton("📦 پشتیبان‌ها", callback_data="backups_menu"),
             InlineKeyboardButton("⚙️ تنظیمات", callback_data="settings_menu"),
+            InlineKeyboardButton("📦 پشتیبان‌ها", callback_data="backups_menu"),
         ],
         [InlineKeyboardButton("📝 گزارشات", callback_data="view_logs")],
     ]
