@@ -217,6 +217,11 @@ async def monitor_health(context: CallbackContext):
     global current_status
     endpoint = "api/health"
 
+    notifications_enabled = context.bot_data.get("notifications_enabled", False)  
+    if not notifications_enabled:
+        print("Health monitoring is disabled.")
+        return
+
     try:
         response = await api_stuff(endpoint)
         new_status = "running" if response.get("status") == "running" else "inactive"
@@ -225,34 +230,32 @@ async def monitor_health(context: CallbackContext):
 
     if new_status != current_status["status"]:
         current_status["status"] = new_status
-        try:
-            config = load_telegram_yaml()
-            admin_chat_ids = config.get("admin_chat_ids", [])
 
-            for chat_id in admin_chat_ids:
-                try:
-                    if new_status == "inactive":
-                        await context.bot.send_message(
-                            chat_id=chat_id,
-                            text="⚠️ *هشدار*: برنامه *غیرفعال* شده است. لطفاً وضعیت را بررسی کنید!",
-                            parse_mode="Markdown"
-                        )
-                    elif new_status == "running":
-                        await context.bot.send_message(
-                            chat_id=chat_id,
-                            text="✅ *اطلاعیه*: برنامه دوباره *فعال* و عملیاتی شد.",
-                            parse_mode="Markdown"
-                        )
-                except Exception as e:
-                    print(f"خطا در اطلاع‌رسانی به مدیر: {e}")
+        config = load_telegram_yaml()
+        admin_chat_ids = config.get("admin_chat_ids", [])
 
-        except Exception as e:
-            print(f"خطا در بارگذاری آیدی‌های مدیر یا ارسال اطلاع‌رسانی‌ها: {e}")
+        for chat_id in admin_chat_ids:
+            try:
+                if new_status == "inactive":
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text="⚠️ *هشدار*: برنامه *غیرفعال* شده است. لطفاً وضعیت را بررسی کنید!",
+                        parse_mode="Markdown"
+                    )
+                elif new_status == "running":
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text="✅ *اطلاعیه*: برنامه دوباره *فعال* و عملیاتی شد.",
+                        parse_mode="Markdown"
+                    )
+            except Exception as e:
+                print(f"خطا در اطلاع‌رسانی به مدیر: {e}")
 
     try:
         context.job_queue.run_once(monitor_health, 10)
     except Exception as e:
         print(f"خطا در زمان‌بندی مجدد مانیتورینگ : {e}")
+
 
 
 async def start_login(update: Update, context: CallbackContext):
@@ -386,7 +389,9 @@ async def start(update: Update = None, context: CallbackContext = None, chat_id:
     status_message = (
         f"{status_icon} وضعیت برنامه: {'🟢 فعال' if current_status['status'] == 'running' else '🔴 غیرفعال'}"
     )
-    notification_status = "✅ فعال" if admin_chat_ids else "❌ غیرفعال"
+
+    notifications_enabled = context.bot_data.get("notifications_enabled", False)  
+    notification_status = "✅ فعال" if notifications_enabled else "❌ غیرفعال"
 
     caption_text = (
         f"<b>به ربات مدیریت وایرگارد خوش آمدید</b>\n\n"
@@ -399,7 +404,6 @@ async def start(update: Update = None, context: CallbackContext = None, chat_id:
         [
             InlineKeyboardButton("🔕 غیرفعال کردن اعلان‌ها", callback_data="disable_notifications"),
             InlineKeyboardButton("🔔 فعال کردن اعلان‌ها", callback_data="enable_notifications"),
-            
         ],
         [
             InlineKeyboardButton("📊 آمار", callback_data="metrics"),
@@ -436,6 +440,7 @@ async def start(update: Update = None, context: CallbackContext = None, chat_id:
             chat_id=chat_id,
             text="❌ ارسال تصویر امکان‌پذیر نیست.",
         )
+
 
 
 
@@ -772,23 +777,19 @@ async def enable_notifications(update: Update, context: CallbackContext):
         )
         return
 
-    config = load_telegram_yaml()
-    admin_chat_ids = config.get("admin_chat_ids", [])
-    if str(chat_id) not in map(str, admin_chat_ids):
-        admin_chat_ids.append(str(chat_id))
-        save_chat_ids(admin_chat_ids)
+    context.bot_data["notifications_enabled"] = True
+
+    context.job_queue.run_once(monitor_health, 10)
 
     keyboard = [[InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.callback_query.answer()
     await update.callback_query.message.reply_text(
-        f"✅ اعلان‌ها فعال شدند. آیدی مدیر افزوده شد: `{chat_id}`",
+        f"✅ اعلان‌ها برای این چت فعال شدند.",
         parse_mode="Markdown",
         reply_markup=reply_markup
     )
-
-
 
 async def disable_notifications(update: Update, context: CallbackContext):
     chat_id = update.effective_chat.id
@@ -801,10 +802,12 @@ async def disable_notifications(update: Update, context: CallbackContext):
         )
         return
 
-    config = load_telegram_yaml()
-    admin_chat_ids = config.get("admin_chat_ids", [])
-    admin_chat_ids = [id_ for id_ in admin_chat_ids if str(id_) != str(chat_id)]
-    save_chat_ids(admin_chat_ids)
+    context.bot_data["notifications_enabled"] = False
+
+    current_jobs = context.job_queue.jobs()
+    for job in current_jobs:
+        if job.name == "monitor_health":
+            job.schedule_removal()
 
     keyboard = [[InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -815,6 +818,8 @@ async def disable_notifications(update: Update, context: CallbackContext):
         parse_mode="Markdown",
         reply_markup=reply_markup
     )
+
+
 
 
 
@@ -2696,6 +2701,7 @@ def main():
     .read_timeout(30.0)     
     .build()
 )
+    application.bot_data = {"notifications_enabled": True} 
 
     block_unblock_stuff = ConversationHandler(
     entry_points=[CallbackQueryHandler(block_unblock_peer, pattern="block_unblock_peer")],
