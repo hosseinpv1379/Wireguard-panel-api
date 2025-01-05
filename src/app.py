@@ -165,11 +165,12 @@ system_timezone = pytz.timezone(get_system_timezone())
 print(f"[INFO] Detected System Timezone: {system_timezone}")
 
 
-@app.route('/set-language', methods=['POST'])
+@app.route("/set-language", methods=["POST"])
 def set_language():
-    language = request.form.get('language', 'en')  
-    session['language'] = language
-    return redirect(request.referrer or url_for('home'))
+    selected_language = request.form.get("language")
+    if selected_language in ["en", "fa"]: 
+        session["language"] = selected_language  
+    return redirect(request.referrer or url_for("home"))
 
 
 @app.route('/api/login', methods=['POST'])
@@ -582,21 +583,22 @@ def uninstall_telegram():
             "error": str(e)
         }), 500
     
-@app.route("/get-admin-chat-id", methods=["GET"])
-def get_admin_chat_id():
+@app.route("/get-admin-chat-ids", methods=["GET"])
+def get_admin_chat_ids():
     try:
-        admin_chat_id = "1234567890" 
-        if os.path.exists(TELEGRAM_CONFIG_FILE):
-            with open(TELEGRAM_CONFIG_FILE, "r") as yaml_file:
-                yaml_config = yaml.safe_load(yaml_file) or {}
-                admin_chat_id = yaml_config.get("admin_chat_id", "")
-        
-        return jsonify({
-            "admin_chat_id": admin_chat_id
-        })
+        if not os.path.exists(TELEGRAM_CONFIG_FILE):
+            return jsonify({"error": "Config file not found"}), 404
+
+        with open(TELEGRAM_CONFIG_FILE, "r") as yaml_file:
+            yaml_config = yaml.safe_load(yaml_file) or {}
+            encrypted_chat_ids = yaml_config.get("admin_chat_ids", [])
+            admin_chat_ids = [cipher.decrypt(chat_id.encode()).decode() for chat_id in encrypted_chat_ids]
+
+        return jsonify({"admin_chat_ids": admin_chat_ids})
     except Exception as e:
-        print(f"error in loading telegram.yaml: {e}")
-        return jsonify({"error": "Couldn't load admin chat ID.", "details": str(e)}), 500
+        print(f"Error loading telegram.yaml: {e}")
+        return jsonify({"error": "Couldn't load admin chat IDs.", "details": str(e)}), 500
+
 
     
 @app.route("/bot-status", methods=["GET"])
@@ -673,27 +675,21 @@ def save_telegram_config():
         bot_token = data.get("bot_token")
         base_url = data.get("base_url")
         api_key = data.get("api_key")
-        admin_chat_id = data.get("admin_chat_id")
+        admin_chat_ids = data.get("admin_chat_ids")  
 
-        if not bot_token or not base_url or not api_key or not admin_chat_id:
+        if not bot_token or not base_url or not api_key or not admin_chat_ids:
             return jsonify({"message": "All fields are required!"}), 400
 
-        json_config = {
-            "bot_token": bot_token,
-            "base_url": base_url,
-            "api_key": api_key
-        }
-        with open(TELEGRAM_CONFIG_JSON, "w") as json_file:
-            json.dump(json_config, json_file, indent=4)
+        encrypted_chat_ids = [cipher.encrypt(chat_id.encode()).decode() for chat_id in admin_chat_ids]
 
-        yaml_config = {"admin_chat_id": admin_chat_id}
+        yaml_config = {"admin_chat_ids": encrypted_chat_ids}
         with open(TELEGRAM_CONFIG_FILE, "w") as yaml_file:
             yaml.safe_dump(yaml_config, yaml_file)
 
         return jsonify({"message": "Telegram config saved successfully!"})
-    
     except Exception as e:
         return jsonify({"message": "Couldn't save config.", "error": str(e)}), 500
+
 
 
 new_backup_created = False
@@ -840,8 +836,8 @@ def obtain_web_config():
 
 @app.before_request
 def set_default_language():
-    if 'language' not in session:
-        session['language'] = 'en' 
+    if "language" not in session:
+        session["language"] = "en"
 
 @app.route("/")
 def index():
@@ -2619,19 +2615,14 @@ def update_custom_ip():
     custom_ip = data.get("custom_ip")
 
     if not custom_ip:
-        return jsonify(error="Custom IP is required"), 400
-
-    try:
-        import ipaddress
-        ipaddress.ip_address(custom_ip)
-    except ValueError:
-        return jsonify(error="Wrong IP address"), 400
+        return jsonify(error="Custom IP or Subdomain is required"), 400
 
     try:
         set_custom_ip(custom_ip)
-        return jsonify(message="Custom IP updated successfully")
+        return jsonify(message="Custom IP/Subdomain updated successfully")
     except Exception as e:
-        return jsonify(error=f"error in updating custom IP: {str(e)}"), 500
+        return jsonify(error=f"Error in updating custom IP/Subdomain: {str(e)}"), 500
+
 
 def read_file_content(file_name):
     try:
