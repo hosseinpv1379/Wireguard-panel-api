@@ -16,7 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const botTokenInput = document.getElementById("bot-token");
     const baseUrlInput = document.getElementById("base-url");
     const apiKeyInput = document.getElementById("api-key");
-    const adminChatIdInput = document.getElementById("admin-chat-id");
+    const adminChatIdInput = document.getElementById("admin-chat-ids");
     function showAlert(message) {
     const alertModal = document.getElementById("alertModal");
     const alertMessage = document.getElementById("alertMessage");
@@ -73,15 +73,23 @@ document.addEventListener("DOMContentLoaded", () => {
         })
         .catch(error => console.error("error in uninstalling bot:", error));
 });
-    function fetchAdminChatId() {
-    fetch("/get-admin-chat-id")
-        .then(response => response.json())
-        .then(data => {
-            const adminChatIdInput = document.getElementById("admin-chat-id");
-            adminChatIdInput.value = data.admin_chat_id || "example_admin_chat_id";
+    function fetchAdminChatIds() {
+    fetch("/get-admin-chat-ids")  
+        .then(response => {
+            if (!response.ok) throw new Error(`error in: ${response.status}`);
+            return response.json();
         })
-        .catch(error => console.error("fetching admin chat ID error:", error));
+        .then(data => {
+            const adminChatIdInput = document.getElementById("admin-chat-ids");
+            if (data.admin_chat_ids) {
+                adminChatIdInput.value = data.admin_chat_ids.join(", "); 
+            } else {
+                adminChatIdInput.value = ""; 
+            }
+        })
+        .catch(error => console.error("error in fetching admin chat IDs:", error));
 }
+
 
     function updateUI(status) {
     if (status === "running") {
@@ -121,22 +129,27 @@ document.addEventListener("DOMContentLoaded", () => {
     fetch("/get-telegram-config")
         .then(response => response.json())
         .then(data => {
-            if (data["bot_token"]) botTokenInput.value = data["bot_token"]; 
+            if (data["bot_token"]) botTokenInput.value = data["bot_token"];
             if (data["base_url"]) baseUrlInput.value = data["base_url"];
             if (data["api_key"]) apiKeyInput.value = data["api_key"];
         })
         .catch(error => console.error("error in fetching bot config:", error));
 
-    fetch("/get-admin-chat-id")
+    fetch("/get-admin-chat-ids")  
         .then(response => {
             if (!response.ok) throw new Error(`error in: ${response.status}`);
             return response.json();
         })
         .then(data => {
-            if (data["admin_chat_id"]) adminChatIdInput.value = data["admin_chat_id"]; 
+            if (data.admin_chat_ids) {
+                adminChatIdInput.value = data.admin_chat_ids.join(", ");
+            } else {
+                adminChatIdInput.value = ""; 
+            }
         })
-        .catch(error => console.error("error in fetching admin chat ID:", error));
+        .catch(error => console.error("error in fetching admin chat IDs:", error));
 }
+
 
 
     installButton.addEventListener("click", () => {
@@ -272,15 +285,11 @@ function showProgressBar() {
 
     telegramForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    const botToken = botTokenInput.value.trim();
-    const baseUrl = baseUrlInput.value.trim();
-    const apiKey = apiKeyInput.value.trim();
-    const adminChatId = adminChatIdInput.value.trim();
 
-    if (!botToken || !baseUrl || !apiKey || !adminChatId) {
-        showAlert("تکمیل همه فیلدها الزامی است!");
-        return;
-    }
+    const botToken = botTokenInput.value;
+    const baseUrl = baseUrlInput.value;
+    const apiKey = apiKeyInput.value;
+    const adminChatIds = adminChatIdInput.value.split(",").map(id => id.trim()); 
 
     fetch("/save-telegram-config", {
         method: "POST",
@@ -289,22 +298,15 @@ function showProgressBar() {
             bot_token: botToken,
             base_url: baseUrl,
             api_key: apiKey,
-            admin_chat_id: adminChatId
-        })
+            admin_chat_ids: adminChatIds,
+        }),
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.message === "Telegram configuration saved successfully!") {
-            showAlert("کانفیگ با موفقیت ذخیره شد!");
-            fetchConfig();
-        } else {
-            showAlert("ذخیره کانفیگ موفقیت امیز بود");
-        }
-    })
-    .catch(error => console.error("saving config error:", error));
+        .then((response) => response.json())
+        .then((data) => showAlert(data.message))
+        .catch((error) => console.error("error saving Telegram config:", error));
 });
 fetchConfig();
-fetchAdminChatId();
+fetchAdminChatIds();
 fetchBotStatus();
 fetchApiKeys();
 });
