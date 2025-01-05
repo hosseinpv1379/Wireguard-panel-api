@@ -9,6 +9,24 @@
     <link rel="stylesheet" href="/static/css/style.css">
     <script defer src="/static/js/telegram.js"></script>
     <style>
+    #admin-chat-ids {
+    color: #333;
+    font-size: 14px;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    width: 100%;
+    box-sizing: border-box;
+    height: auto; 
+    min-height: 38px; 
+    resize: none; 
+    }
+
+    #admin-chat-ids:focus {
+    border-color: #1abc9c;
+    outline: none;
+    }
+
 
         .content {
             margin-left: 330px;
@@ -210,8 +228,8 @@ input:focus {
                         <label for="api-key">API Key:</label>
                         <input type="text" id="api-key" placeholder="example_api_key" required>
                 
-                        <label for="admin-chat-id">Admin Chat ID:</label>
-                        <input type="text" id="admin-chat-id" placeholder="1234567890" required>
+                        <label for="admin-chat-ids">Admin Chat IDs:</label>
+                        <textarea id="admin-chat-ids" placeholder="1234567890, 0987654321" required></textarea>
                 
                         <button type="submit" class="btn-primary">Save Configuration</button>
                     </form>
