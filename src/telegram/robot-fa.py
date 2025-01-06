@@ -79,6 +79,7 @@ SELECT_CONFIG_DYNAMIC = 52
 VIEW_PEER_DETAILS = 53
 SELECT_TEMPLATE_PEER = 54
 INPUT_MTU = 55
+INPUT_KEEPALIVE = 56
 
 def load_telegram_yaml():
     telegram_dir = os.path.dirname(os.path.abspath(__file__))
@@ -821,8 +822,6 @@ async def disable_notifications(update: Update, context: CallbackContext):
 
 
 
-
-
 def register_notification(application):
     application.add_handler(CallbackQueryHandler(enable_notifications, pattern="enable_notifications"))
     application.add_handler(CallbackQueryHandler(disable_notifications, pattern="disable_notifications"))
@@ -842,10 +841,10 @@ async def backups_menu(update: Update, context: CallbackContext):
     await query.answer()
 
     keyboard = [
-        [InlineKeyboardButton("📋 نمایش پشتیبان‌ها", callback_data="show_backups")],
-        [InlineKeyboardButton("➕ ایجاد پشتیبان", callback_data="create_backup")],
-        [InlineKeyboardButton("🗑 حذف پشتیبان", callback_data="delete_backup")],
-        [InlineKeyboardButton("🔄 بازیابی پشتیبان", callback_data="restore_backup")],
+        [InlineKeyboardButton("📋 نمایش پشتیبان‌ها", callback_data="show_backups"),
+         InlineKeyboardButton("➕ ایجاد پشتیبان", callback_data="create_backup")],
+        [InlineKeyboardButton("🗑 حذف پشتیبان", callback_data="delete_backup"),
+         InlineKeyboardButton("🔄 بازیابی پشتیبان", callback_data="restore_backup")],
         [InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -1917,12 +1916,35 @@ async def write_expiry_time(update: Update, context: CallbackContext):
 
 async def write_mtu(update: Update, context: CallbackContext):
     mtu_value = update.message.text.strip()
-    
+
     if mtu_value and not mtu_value.isdigit():
         await update.message.reply_text("❌ مقدار MTU نادرست است. لطفاً عددی وارد کنید.")
         return INPUT_MTU
 
     context.user_data["mtu"] = int(mtu_value) if mtu_value else 1280
+
+    await update.message.reply_text(
+        "⏳ *مقدار Persistent Keepalive را وارد کنید (پیش‌فرض: 25):*\n\n"
+        "مثال: `25`",
+        parse_mode="Markdown"
+    )
+    return INPUT_KEEPALIVE
+
+async def choose_keepalive(update: Update, context: CallbackContext):
+    await update.message.reply_text(
+        "⏳ *مقدار Persistent Keepalive را وارد کنید (پیش‌فرض: 25):*\n\n"
+        "مثال: `25`",
+        parse_mode="Markdown"
+    )
+    return INPUT_KEEPALIVE
+
+async def write_keepalive(update: Update, context: CallbackContext):
+    keepalive_value = update.message.text.strip()
+    if keepalive_value and not keepalive_value.isdigit():
+        await update.message.reply_text("❌ مقدار Persistent Keepalive نادرست است. لطفاً عددی وارد کنید.")
+        return INPUT_KEEPALIVE
+
+    context.user_data["persistent_keepalive"] = int(keepalive_value) if keepalive_value else 25
 
     keyboard = [
         [InlineKeyboardButton("✅ بله", callback_data="confirm_usage_yes")],
@@ -1939,7 +1961,6 @@ async def write_mtu(update: Update, context: CallbackContext):
     return CONFIRM_USAGE
 
 
-
 async def confirm_use(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
@@ -1948,6 +1969,7 @@ async def confirm_use(update: Update, context: CallbackContext):
     context.user_data["first_usage"] = first_usage
 
     mtu = context.user_data.get("mtu", 1280) 
+    persistent_keepalive = context.user_data.get("persistent_keepalive", 25)  
 
     payload = {
         "peerName": context.user_data["peer_name"],
@@ -1957,7 +1979,8 @@ async def confirm_use(update: Update, context: CallbackContext):
         "dns": context.user_data["dns"],
         "expiryDays": context.user_data["expiry_days"],
         "firstUsage": first_usage,
-        "mtu": mtu  
+        "mtu": mtu,
+        "persistentKeepalive": persistent_keepalive  
     }
     response = await api_stuff("api/create-peer", method="POST", data=payload)
     if "error" in response:
@@ -1965,38 +1988,37 @@ async def confirm_use(update: Update, context: CallbackContext):
         return ConversationHandler.END
 
     keyboard = [
-    [
-        InlineKeyboardButton("📂 دانلود تنظیمات", callback_data=f"download_{payload['peerName']}"),
-        InlineKeyboardButton("📷 دریافت کد QR", callback_data=f"qr_{payload['peerName']}")
-    ],
-    [
-        InlineKeyboardButton("🔙 بازگشت به منوی کاربران", callback_data="peers_menu"),
-        InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="main_menu")
+        [
+            InlineKeyboardButton("📂 دانلود تنظیمات", callback_data=f"download_{payload['peerName']}"),
+            InlineKeyboardButton("📷 دریافت کد QR", callback_data=f"qr_{payload['peerName']}")
+        ],
+        [
+            InlineKeyboardButton("🔙 بازگشت به منوی کاربران", callback_data="peers_menu"),
+            InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="main_menu")
+        ]
     ]
-]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await query.message.reply_text(
-    f"✅ *کاربر '{payload['peerName']}' با موفقیت ایجاد شد!* \n\n"
-    f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-    f"🔹 *Peer name:* `{payload['peerName']}`\n"
-    f"📄 *Interface name:* `{payload['configFile']}`\n"
-    f"🌍 *IP address:* `{payload['peerIp']}`\n"
-    f"📏 *Data limit:* `{payload['dataLimit']}`\n"
-    f"⏳ *Expiry days:* `{payload['expiryDays']} day/s`\n"
-    f"📡 *MTU:* `{payload['mtu']}`\n"
-    f"🛜 *DNS:* `{payload['dns']}`\n"
-    f"🟢 *First usage:* {'Enabled 🟢' if payload['firstUsage'] else 'Disabled 🔴'}\n\n"
-    f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-    f"برای دانلود فایل تنظیمات یا دریافت کد QR، از دکمه‌های زیر استفاده کنید:",
-    parse_mode="Markdown",
-    reply_markup=reply_markup
-)
-
+        f"✅ *کاربر '{payload['peerName']}' با موفقیت ایجاد شد!* \n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🔹 *Peer name:* `{payload['peerName']}`\n"
+        f"📄 *Interface name:* `{payload['configFile']}`\n"
+        f"🌍 *IP address:* `{payload['peerIp']}`\n"
+        f"📏 *Data limit:* `{payload['dataLimit']}`\n"
+        f"⏳ *Expiry days:* `{payload['expiryDays']} day/s`\n"
+        f"📡 *MTU:* `{payload['mtu']}`\n"
+        f"🛜 *DNS:* `{payload['dns']}`\n"
+        f"🟢 *First usage:* {'Enabled 🟢' if payload['firstUsage'] else 'Disabled 🔴'}\n"
+        f"🌐 *Persistent Keepalive:* `{payload['persistentKeepalive']}`\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"برای دانلود فایل تنظیمات یا دریافت کد QR، از دکمه‌های زیر استفاده کنید:",
+        parse_mode="Markdown",
+        reply_markup=reply_markup
+    )
 
     return ConversationHandler.END
-
 
 
 
@@ -2748,7 +2770,8 @@ def main():
         SELECT_DNS: [CallbackQueryHandler(select_dns, pattern="dns_.*")],
         INPUT_CUSTOM_DNS: [MessageHandler(filters.TEXT & ~filters.COMMAND, write_custom_dns)],
         INPUT_EXPIRY_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, write_expiry_time)],
-        INPUT_MTU: [MessageHandler(filters.TEXT & ~filters.COMMAND, write_mtu)],  
+        INPUT_MTU: [MessageHandler(filters.TEXT & ~filters.COMMAND, write_mtu)],
+        INPUT_KEEPALIVE: [MessageHandler(filters.TEXT & ~filters.COMMAND, write_keepalive)],  
         CONFIRM_USAGE: [CallbackQueryHandler(confirm_use, pattern="confirm_usage_.*")],
         ConversationHandler.END: [
             CallbackQueryHandler(download_peerconfig_create, pattern="download_.*"),
@@ -2758,6 +2781,7 @@ def main():
     fallbacks=[],
     allow_reentry=True,
 )
+
 
     
     peer_edit_stuff = ConversationHandler(
