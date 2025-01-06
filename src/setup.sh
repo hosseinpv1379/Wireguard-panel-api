@@ -65,7 +65,6 @@ wireguard_detailed_stats() {
         IP_ADDRESS=$(grep '^Address' "$interface" | awk '{print $3}')
         PORT=$(grep '^ListenPort' "$interface" | awk '{print $3}')
         MTU=$(grep '^MTU' "$interface" | awk '{print $3}')
-        DNS=$(grep '^DNS' "$interface" | awk '{print $3}')
 
         if wg show "$INTERFACE_NAME" >/dev/null 2>&1; then
             STATUS="Running"
@@ -78,7 +77,6 @@ wireguard_detailed_stats() {
         echo -e "  ${GREEN}IP Address: ${CYAN}${IP_ADDRESS:-Not Assigned}${NC}"
         echo -e "  ${GREEN}Port: ${CYAN}${PORT:-Not Defined}${NC}"
         echo -e "  ${GREEN}MTU: ${CYAN}${MTU:-Default}${NC}"
-        echo -e "  ${GREEN}DNS: ${CYAN}${DNS:-Not Set}${NC}"
         echo -e "${YELLOW}─────────────────────────────────────────────────────────────────────${NC}"
     done
 
@@ -789,7 +787,7 @@ wireguardconf() {
     echo -e '\033[93m══════════════════════════════════════════════════\033[0m'
 
     while true; do
-        echo -e "${YELLOW}Enter the ${BLUE}Wireguard ${GREEN}interface name${NC} (example wg0):${NC} \c"
+        echo -e "${YELLOW}Enter the ${BLUE}Wireguard ${GREEN}interface name${NC} (wg0 and so on):${NC} \c"
         read -e WG_NAME
         if [ -n "$WG_NAME" ]; then
             echo -e "${INFO}[INFO] Interface Name set to: ${GREEN}$WG_NAME${NC}"
@@ -837,17 +835,6 @@ wireguardconf() {
             break
         else
             echo -e "${RED}Wrong MTU size. Please try again.${NC}"
-        fi
-    done
-
-    while true; do
-        echo -e "${YELLOW}Enter the ${BLUE}DNS ${GREEN}servers ${NC}(example 1.1.1.1):${NC} \c"
-        read -e DNS
-        if [ -n "$DNS" ]; then
-            echo -e "${INFO}[INFO] DNS Servers set to: ${GREEN}$DNS${NC}"
-            break
-        else
-            echo -e "${RED}DNS servers cannot be empty. Please try again.${NC}"
         fi
     done
 
