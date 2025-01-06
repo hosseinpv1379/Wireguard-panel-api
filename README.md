@@ -49,7 +49,6 @@ which wg
   </details>
 </div>
 
--------------------
  <div align="right">
   <details>
     <summary><strong><img src="https://github.com/user-attachments/assets/0ddf06f0-04c1-4d5a-bbb8-d784015e93d2" alt="Image"> مشکلات DNS (بخوانید)</strong></summary>
@@ -68,7 +67,7 @@ sudo nano /etc/systemd/resolved.conf
 [Resolve]
 DNS=1.1.1.1 8.8.8.8
 FallbackDNS=1.0.0.1 8.8.4.4
-ذخیره کنید ctrl + x و بعد y
+### now Ctrl + x , y to save ###
 
 sudo systemctl restart systemd-resolved
 sudo rm /etc/resolv.conf
@@ -77,6 +76,7 @@ sudo ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
 cat /etc/resolv.conf
 
 ```
+ <div align="right">
 - اگر کانفیگ /etc/resolv.conf شما هر چند دقیقه ریست میشود هم میتوانید با کرون جاب اینکار را انجام دهید
 
  <div align="left">
@@ -92,6 +92,63 @@ crontab -e
 
 
   </details>
+</div>
+
+ <div align="right">
+  <details>
+    <summary><strong><img src="https://github.com/user-attachments/assets/79ca8970-1e05-4e60-bc7c-aa12f3573bbc" alt="Image"> ست کردن قالب دلخواه</strong></summary>
+
+------------------------------------ 
+- در قسمت Peers یک قالب دیفالت وجود دارد. میتوانید از قالب دلخواه خود استفاده نمایید
+- یک قالب در ابعاد 430 در 500 درست کنید ور در قسمت usr/local/bin/Wireguard-panel/src/static/images با نام template.jpg قرار دهید
+- پنل را ریست نمایید . از این به بعد قالب شما به نمایش در خواهد امد
+
+
+</details>
+</div>
+
+ <div align="right">
+  <details>
+    <summary><strong><img src="https://github.com/user-attachments/assets/dbbc44c0-06c0-405d-80f8-fb8c3a79a874" alt="Image"> نحوه گزارش و debug</strong></summary>
+
+------------------------------------ 
+- اگر مشکلی در خود پنل و اجرا نشدنش دارید با دستورهای زیر میتوانید مشکل را متوجه شوید
+ <div align="left">
+  
+```
+systemctl status wireguard-panel
+systemctl stop wireguard-panel
+---------------------------------------
+## change debug=false >> debug=true
+
+nano /usr/local/bin/Wireguard-panel/src/config.yaml
+پس از تغییر دیباگ، ان را ذخیره کنید و خارج شوید
+/usr/local/bin/Wireguard-panel/src/venv/bin/python3 /usr/local/bin/Wireguard-panel/src/app.py
+حالا باید ببینید چه خطایی گرفتید تا بشود مشکل شما را فهمید
+```
+ <div align="right">
+  
+- برای سرویس های بات هم به همین صورت عمل میکنیم
+ <div align="left">
+  
+```
+بسته به نوع سرویس فارسی یا انگلیسی
+systemctl status telegram-bot-fa
+systemctl stop telegram-bot-fa
+/usr/local/bin/Wireguard-panel/src/venv/bin/python /usr/local/bin/Wireguard-panel/src/telegram/robot-fa.py
+برای انگلیسی
+systemctl status telegram-bot-en
+systemctl stop telegram-bot-en
+/usr/local/bin/Wireguard-panel/src/venv/bin/python /usr/local/bin/Wireguard-panel/src/telegram/robot.py
+
+حالا باید خطا را ببینید و مشکل را حل کنید
+```
+<div align="right">
+ 
+- پس از رفع مشکل، سرویس ها را ریست نمایید
+
+
+</details>
 </div>
 
 -------------------
