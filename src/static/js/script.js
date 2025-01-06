@@ -402,23 +402,24 @@ toggleConfig.addEventListener("click", async () => {
 });
 
 let peersData = []; 
-let currentPage = 1; 
+let currentPage = 1;
 const limit = 10; 
 
-const fetchPeers = async (config, page = 1) => {
+const fetchPeers = async (config, page = currentPage) => {
     try {
         const response = await fetch(`/api/peers?config=${config}&page=${page}&limit=${limit}`);
         const data = await response.json();
 
         if (response.ok) {
-            peersData = data.peers || []; 
+            peersData = data.peers || [];
             renderPeers(peersData, config); 
             renderPagination(data.current_page, data.total_pages, config); 
+            currentPage = data.current_page; 
         } else {
-            console.error(data.error || "fetching peers failed.");
+            console.error(data.error || "Fetching peers failed.");
         }
     } catch (error) {
-        console.error("fetching peers error:", error);
+        console.error("Fetching peers error:", error);
     }
 };
 
@@ -1138,13 +1139,17 @@ fetchPeers(defaultConfig);
 setInterval(fetchMetrics, 10000); 
 setInterval(fetchSpeedData, 5000);
 setInterval(fetchStatuses, 10000);
+const refreshPeerList = (config) => {
+    fetchPeers(config, currentPage); 
+};
+
 setInterval(() => {
     if (isSearching || isFiltering) {
         console.log("Skipping peer refresh due to active search or filter.");
         return; 
     }
 
-    console.log("Refreshing peer list..");
-    fetchPeers(configSelect.value);
+    console.log("Refreshing peer list...");
+    refreshPeerList(configSelect.value); 
 }, 10000);
 });
