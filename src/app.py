@@ -168,9 +168,13 @@ print(f"[INFO] Detected System Timezone: {system_timezone}")
 @app.route("/set-language", methods=["POST"])
 def set_language():
     selected_language = request.form.get("language")
-    if selected_language in ["en", "fa"]: 
-        session["language"] = selected_language  
+    if selected_language in ["en", "fa"]:
+        session["language"] = selected_language
+        response = make_response(redirect(request.referrer or url_for("home")))
+        response.set_cookie("language", selected_language, max_age=30*24*60*60)  
+        return response
     return redirect(request.referrer or url_for("home"))
+
 
 
 @app.route('/api/login', methods=['POST'])
@@ -848,7 +852,8 @@ def obtain_web_config():
 @app.before_request
 def set_default_language():
     if "language" not in session:
-        session["language"] = "en"
+        language = request.cookies.get("language", "en")
+        session["language"] = language
 
 @app.route("/")
 def index():
