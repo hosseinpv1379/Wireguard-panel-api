@@ -225,6 +225,8 @@ systemctl stop telegram-bot-en
 - اپدیت استفاده از ساب دامین به جای Ip هم اضافه شد
 - اپدیت encryption فایل telegram.yaml اضافه شد
 - اپدیت برای disable & enable notifications که بر اساس health app.py کار کند
+- اپدیت pagination انجام شد که دیگر به صفحه نخست باز نگردد
+- بات فارسی مشکل پاک شدنش برطرف شد
   </details>
 </div>
 
