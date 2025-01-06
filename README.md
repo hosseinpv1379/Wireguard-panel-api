@@ -4,7 +4,7 @@
 ----------------------------------
  <div align="right">
   <details>
-    <summary><strong><img src="https://github.com/user-attachments/assets/0ddf06f0-04c1-4d5a-bbb8-d784015e93d2" alt="Image"> مشکلات احتمالی</strong></summary>
+    <summary><strong><img src="https://github.com/user-attachments/assets/0ddf06f0-04c1-4d5a-bbb8-d784015e93d2" alt="Image"> مشکلات احتمالی (بخوانید)</strong></summary>
 
 ------------------------------------ 
 
@@ -50,7 +50,51 @@ which wg
 </div>
 
 -------------------
+ <div align="right">
+  <details>
+    <summary><strong><img src="https://github.com/user-attachments/assets/0ddf06f0-04c1-4d5a-bbb8-d784015e93d2" alt="Image"> مشکلات DNS (بخوانید)</strong></summary>
 
+------------------------------------ 
+
+- سرور شما مشکل dns داشته باشد هم کارایی پنل پایین خواهد امد و هم بات از کار می افتد. من از داخل اسکریپت قسمت dns هم برداشتم
+- اگر سرور شما مشکل dns دارد، میتوانید از اوپتیمایزر استفاده کنید
+- بر روی سرور debian 12 و ubuntu24 میتوانید از دستورات زیر استفاده نمایید
+<div align="left">
+  
+```
+sudo nano /etc/systemd/resolved.conf
+
+این مقایدر را به آن اضافه کنید
+[Resolve]
+DNS=1.1.1.1 8.8.8.8
+FallbackDNS=1.0.0.1 8.8.4.4
+ذخیره کنید ctrl + x و بعد y
+
+sudo systemctl restart systemd-resolved
+sudo rm /etc/resolv.conf
+sudo ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
+حالا بررسی کنید که تغییرات اعمال شده است
+cat /etc/resolv.conf
+
+```
+- اگر کانفیگ /etc/resolv.conf شما هر چند دقیقه ریست میشود هم میتوانید با کرون جاب اینکار را انجام دهید
+
+ <div align="left">
+  
+```
+crontab -e
+اینو اضافه کنید
+* * * * * echo -e "nameserver 1.1.1.1\nnameserver 1.0.0.1" > /etc/resolv.conf
+
+ذخیره کنید و خارج شوید
+
+```
+
+
+  </details>
+</div>
+
+-------------------
 **توضیحات:**
 
 - این پروژه آموزشی برای یادگیری بیشتر در این زمینه میباشد و امیدوارم به کار شما بیاید ( استفاده از آن بر عهده شما میباشد). اگردرخواست رفع باگی یا اضافه کردن feature ای داشتید تنها در قسمت Issues بیان کنید تا در صورت توان، مشکل را حل و درخواستی را اضافه کنم.
