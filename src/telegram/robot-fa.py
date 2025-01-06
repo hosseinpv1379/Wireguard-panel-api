@@ -1144,7 +1144,7 @@ async def peers_menu(update: Update, context: CallbackContext):
         ],
         [
             InlineKeyboardButton("🔄 ریست ترافیک/انقضا", callback_data="reset_peer"),
-            InlineKeyboardButton("❌ حذف کاربر", callback_data="delete_peer"),
+            InlineKeyboardButton("❌ حذف کاربر", callback_data="peer_delete"),
         ],
         [
             InlineKeyboardButton("🔒 مسدود/باز کردن کاربر", callback_data="block_unblock_peer"),
