@@ -75,27 +75,32 @@ document.addEventListener("DOMContentLoaded", () => {
             showErrorMessage("unable to fetch configurations.");
         }
     };
+    let currentPage = 1; 
+    let search = ""; 
+    let filter = ""; 
 
-    const fetchPeers = async (config, search = "", filter = "", page = 1) => {
-        try {
-            const response = await fetch(
-                `/api/peers?config=${config}&search=${encodeURIComponent(search)}&filter=${encodeURIComponent(filter)}&page=${page}&limit=${limit}`
-            );
-            const data = await response.json();
+    const fetchPeers = async (config, search = "", filter = "", page = currentPage) => {
+    try {
+        const response = await fetch(
+            `/api/peers?config=${config}&search=${encodeURIComponent(search)}&filter=${encodeURIComponent(filter)}&page=${page}&limit=${limit}`
+        );
+        const data = await response.json();
 
-            if (response.ok) {
-                peersData = data.peers || [];
-                renderPeers(peersData, config);
-                renderPagination(page, data.total_pages, config, search, filter);
-            } else {
-                console.error(data.error || "Couldn't fetch peers.");
-                showErrorMessage("No peers found.");
-            }
-        } catch (error) {
-            console.error("error in fetching peers:", error);
-            showErrorMessage("unable to fetch peers. check your connection.");
+        if (response.ok) {
+            peersData = data.peers || [];
+            renderPeers(peersData, config);
+            renderPagination(page, data.total_pages, config, search, filter); 
+            currentPage = page; 
+        } else {
+            console.error(data.error || "Couldn't fetch peers.");
+            showErrorMessage("No peers found.");
         }
-    };
+    } catch (error) {
+        console.error("Error in fetching peers:", error);
+        showErrorMessage("Unable to fetch peers. Check your connection.");
+    }
+};
+
 const renderPeerBox = (peer) => {
         const peerBox = document.createElement("div");
         peerBox.className = "peer-box";
@@ -425,22 +430,23 @@ function applySharpenFilter(imageData) {
 
 
 const renderPagination = (currentPage, totalPages, config, search = "", filter = "") => {
-        const paginationContainer = document.getElementById("paginationContainer");
-        if (!paginationContainer) {
-            console.error("Pagination container not found.");
-            return;
-        }
+    const paginationContainer = document.getElementById("paginationContainer");
+    if (!paginationContainer) {
+        console.error("Pagination container not found.");
+        return;
+    }
 
-        paginationContainer.innerHTML = ""; 
+    paginationContainer.innerHTML = ""; 
 
-        for (let i = 1; i <= totalPages; i++) {
-            const pageButton = document.createElement("button");
-            pageButton.textContent = i;
-            pageButton.className = i === currentPage ? "active" : "";
-            pageButton.addEventListener("click", () => fetchPeers(config, search, filter, i));
-            paginationContainer.appendChild(pageButton);
-        }
-    };
+    for (let i = 1; i <= totalPages; i++) {
+        const pageButton = document.createElement("button");
+        pageButton.textContent = i;
+        pageButton.className = i === currentPage ? "active" : "";
+        pageButton.addEventListener("click", () => fetchPeers(config, search, filter, i)); 
+        paginationContainer.appendChild(pageButton);
+    }
+};
+
 
 let isFiltering = false;
 let isSearching = false;
@@ -744,8 +750,9 @@ const resetTraffic = async (peerName, config) => {
         return; 
     }
 
-    console.log("Refreshing peer list..");
-    fetchPeers(configSelect.value);
+    console.log("Refreshing peer list...");
+    fetchPeers(configSelect.value, search, filter, currentPage); 
 }, 10000);
+
     fetchConfigs();
 });
