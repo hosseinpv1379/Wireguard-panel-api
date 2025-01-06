@@ -227,6 +227,7 @@ systemctl stop telegram-bot-en
 - اپدیت برای disable & enable notifications که بر اساس health app.py کار کند
 - اپدیت pagination انجام شد که دیگر به صفحه نخست باز نگردد
 - بات فارسی مشکل پاک شدنش برطرف شد
+- اپدیت keepalive به بات اضافه شد
   </details>
 </div>
 
@@ -325,7 +326,7 @@ sudo apt update && sudo apt install python3 python3-pip python3-venv
 python3 -m venv /usr/local/bin/Wireguard-panel/src/venv
 source /usr/local/bin/Wireguard-panel/src/venv/bin/activate
 pip install --upgrade pip
-pip install python-dotenv python-telegram-bot aiohttp matplotlib qrcode "python-telegram-bot[job-queue]" pyyaml flask-session Flask SQLAlchemy Flask-Limiter Flask-Bcrypt Flask-Caching jsonschema psutil requests pynacl apscheduler redis werkzeug jinja2 fasteners gunicorn pexpect cryptography Pillow arabic-reshaper python-bidi
+pip install python-dotenv python-telegram-bot aiohttp matplotlib qrcode "python-telegram-bot[job-queue]" pyyaml flask-session Flask SQLAlchemy Flask-Limiter Flask-Bcrypt Flask-Caching jsonschema psutil pytz requests pynacl apscheduler redis werkzeug jinja2 fasteners gunicorn pexpect cryptography Pillow arabic-reshaper python-bidi
 
 sudo apt-get install -y libsystemd-dev
 deactivate
@@ -436,35 +437,58 @@ WantedBy=multi-user.target
 </div>  
 
 ---------------
+![check](https://github.com/user-attachments/assets/723872d1-1594-4d31-b48b-2b1c41adfaa9)
 **اسکرین شات**
-<details>
-  <summary align="right">پنل</summary>
-  
-  <p align="right">
-    <img src="https://github.com/user-attachments/assets/cb754472-6a4a-4511-acde-b037737b600f" alt="menu screen" />
-  </p>
-</details>
-<details>
-  <summary align="right">ساخت کاربر</summary>
-  
-  <p align="right">
-    <img src="https://github.com/user-attachments/assets/d8b799b5-8825-4079-bfbb-e68c9fa1c7c5" alt="menu screen" />
-  </p>
-</details>
-<details>
-  <summary align="right">باکس کاربر</summary>
-  
-  <p align="right">
-    <img src="https://github.com/user-attachments/assets/ec328904-6e78-4536-a08b-600f3a0c6a64" alt="menu screen" />
-  </p>
-</details>
-<details>
-  <summary align="right">بات</summary>
-  
-  <p align="right">
-    <img src="https://github.com/user-attachments/assets/39c96321-2148-4ca8-88fe-f995b9525487" alt="menu screen" />
-  </p>
-</details>
+<div style="direction: rtl; text-align: right;">
+  <details>
+    <summary style="font-size: 14px; padding: 5px;">پنل</summary>
+    <p style="margin: 0; text-align: right;">
+     <p align="right">
+      <img src="https://github.com/user-attachments/assets/cb754472-6a4a-4511-acde-b037737b600f" alt="menu screen" style="max-width: 100px; height: auto;" />
+    </p>
+  </details>
+
+  <details>
+    <summary style="font-size: 14px; padding: 5px;">ساخت کاربر</summary>
+    <p style="margin: 0; text-align: right;">
+     <p align="right">
+      <img src="https://github.com/user-attachments/assets/d8b799b5-8825-4079-bfbb-e68c9fa1c7c5" alt="menu screen" style="max-width: 100px; height: auto;" />
+    </p>
+  </details>
+
+  <details>
+    <summary style="font-size: 14px; padding: 5px;">باکس کاربر</summary>
+    <p style="margin: 0; text-align: right;">
+     <p align="right">
+      <img src="https://github.com/user-attachments/assets/ec328904-6e78-4536-a08b-600f3a0c6a64" alt="menu screen" style="max-width: 100px; height: auto;" />
+    </p>
+  </details>
+
+  <details>
+    <summary style="font-size: 14px; padding: 5px;">بات</summary>
+    <p style="margin: 0; text-align: right;">
+     <p align="right">
+      <img src="https://github.com/user-attachments/assets/33a595b4-8667-4507-a181-764101d6924f" alt="menu screen" style="max-width: 100px; height: auto;" />
+    </p>
+  </details>
+
+  <details>
+    <summary style="font-size: 14px; padding: 5px;">ساخت کاربر بات</summary>
+    <p style="margin: 0; text-align: right;">
+     <p align="right">
+      <img src="https://github.com/user-attachments/assets/dc478252-de84-4173-9aa8-9233385dbdbd" alt="menu screen" style="max-width: 100px; height: auto;" />
+    </p>
+  </details>
+
+  <details>
+    <summary style="font-size: 14px; padding: 5px;">منوی کاربر بات</summary>
+    <p style="margin: 0; text-align: right;">
+     <p align="right">
+      <img src="https://github.com/user-attachments/assets/c8fd5c11-74a9-4393-8977-3431e4f76f73" alt="menu screen" style="max-width: 100px; height: auto;" />
+    </p>
+  </details>
+</div>
+
 
 -----------------------------------------------------
 
