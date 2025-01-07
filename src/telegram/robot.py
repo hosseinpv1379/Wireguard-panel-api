@@ -1762,9 +1762,9 @@ async def select_config(update: Update, context: CallbackContext):
     selected_config = query.data.replace("config_", "") + ".conf"
     context.user_data["selected_config"] = selected_config
 
-    response = await api_stuff(f"api/available-ips?interface={selected_config.replace('.conf', '')}")
+    response = await api_stuff(f"api/available-ips?config={selected_config}")
     if "error" in response:
-        await query.message.reply_text(f"❌ *fetching available IPs error:* `{response['error']}`", parse_mode="Markdown")
+        await query.message.reply_text(f"❌ *fetching available IPs error:* {response['error']}", parse_mode="Markdown")
         return ConversationHandler.END
 
     available_ips = response.get("availableIps", [])[:5]
