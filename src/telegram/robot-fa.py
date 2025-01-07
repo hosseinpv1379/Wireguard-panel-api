@@ -1776,23 +1776,25 @@ async def select_config(update: Update, context: CallbackContext):
     selected_config = query.data.replace("config_", "") + ".conf"
     context.user_data["selected_config"] = selected_config
 
-    response = await api_stuff(f"api/available-ips?interface={selected_config.replace('.conf', '')}")
+    response = await api_stuff(f"api/available-ips?config={selected_config}")
     if "error" in response:
-        await query.message.reply_text(f"❌ *خطا در دریافت آی‌پی‌های موجود:* `{response['error']}`", parse_mode="Markdown")
+        await query.message.reply_text(f"❌ *خطا در دریافت لیست آی‌پی‌های موجود:* {response['error']}", parse_mode="Markdown")
         return ConversationHandler.END
 
     available_ips = response.get("availableIps", [])[:5]
     if not available_ips:
-        await query.message.reply_text("❌ *هیچ آی‌پی موجودی برای این اینترفیس یافت نشد.*", parse_mode="Markdown")
+        await query.message.reply_text("❌ *هیچ آی‌پی موجودی برای تنظیمات انتخابی پیدا نشد.*", parse_mode="Markdown")
         return ConversationHandler.END
 
     keyboard = [[InlineKeyboardButton(f"🌐 {ip}", callback_data=f"ip_{ip}")] for ip in available_ips]
     await query.message.reply_text(
-        "🛠 *یک آدرس آی‌پی برای کاربر انتخاب کنید:*",
+        "🛠 *آدرس آی‌پی مورد نظر برای ایجاد پیر را انتخاب کنید:*",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown"
     )
     return SELECT_IP_ADDRESS
+
+
 
 
 async def choose_ip(update: Update, context: CallbackContext):
