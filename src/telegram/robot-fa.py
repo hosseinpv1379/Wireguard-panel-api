@@ -1788,7 +1788,7 @@ async def select_config(update: Update, context: CallbackContext):
 
     keyboard = [[InlineKeyboardButton(f"🌐 {ip}", callback_data=f"ip_{ip}")] for ip in available_ips]
     await query.message.reply_text(
-        "🛠 *آدرس آی‌پی مورد نظر برای ایجاد پیر را انتخاب کنید:*",
+        "🛠 *آدرس آی‌پی مورد نظر برای ایجاد کاربر را انتخاب کنید:*",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown"
     )
