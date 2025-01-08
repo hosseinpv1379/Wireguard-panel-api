@@ -593,28 +593,36 @@ const renderPeers = (peers, config) => {
             const deleteBtn = document.createElement("button");
 deleteBtn.title = "Delete Peer";
 deleteBtn.innerHTML = `<i class="fas fa-trash-alt"></i>`;
+
 deleteBtn.onclick = async () => {
     showConfirm(`آیا از پاک کردن ${peer.peer_name} اطمینان دارید ؟`, async (confirmed) => {
         if (confirmed) {
             try {
+                const configFile = peer.config || "wg0.conf";
+
                 const response = await fetch("/api/delete-peer", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ peerName: peer.peer_name }),
+                    body: JSON.stringify({
+                        peerName: peer.peer_name,
+                        configFile: configFile,  
+                    }),
                 });
+
                 const result = await response.json();
                 if (response.ok) {
                     showAlert(result.message || "کاربر با موفقیت حذف شد");
-                    fetchPeers(config); 
+                    fetchPeers(config);  
                 } else {
                     showAlert(result.error || "خطایی در پاک کردن کاربر رخ داده است");
                 }
             } catch (error) {
-                console.error("error in deleting peer:", error);
+                console.error("خطا در حذف کاربر:", error);
             }
         }
     });
 };
+
 function applyFilter() {
     const filterValue = document.getElementById("filterSelect").value;
     const query = document.getElementById("searchInput").value.trim();
