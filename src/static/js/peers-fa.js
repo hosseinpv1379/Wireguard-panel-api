@@ -651,16 +651,18 @@ window.applyFilter = applyFilter;
         showConfirm(`آیا از حذف کاربر ${peerName} مطمئن هستید؟`, async (confirmed) => {
             if (confirmed) {
                 try {
+                    const configFile = config || "wg0.conf";
+
                     const response = await fetch(`/api/delete-peer`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ peerName }),
+                        body: JSON.stringify({ peerName, configFile }),
                     });
 
                     const data = await response.json();
                     if (response.ok) {
                         showAlert(data.message || "کاربر با موفقیت حذف شد.");
-                        fetchPeers(config); 
+                        fetchPeers(config);  
                         resolve();  
                     } else {
                         showAlert(data.error || "حذف کاربر با خطا مواجه شد.");
@@ -676,6 +678,7 @@ window.applyFilter = applyFilter;
         });
     });
 };
+
 
 
 
