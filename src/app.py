@@ -1750,7 +1750,6 @@ def save_peers_to_json(config_name: str, peers):
 
 
 def monitor_traffic():
-
     config_files = [f for f in os.listdir(WIREGUARD_CONFIG_DIR) if f.endswith(".conf")]
     interfaces = [config.split(".")[0] for config in config_files]
 
@@ -1758,12 +1757,12 @@ def monitor_traffic():
         file_path = obtain_peers_file(config_name)
         try:
             with open(file_path, "r") as f:
-                fcntl.flock(f, fcntl.LOCK_SH)  
+                fcntl.flock(f, fcntl.LOCK_SH)
                 peers_data = json.load(f)
-                fcntl.flock(f, fcntl.LOCK_UN) 
+                fcntl.flock(f, fcntl.LOCK_UN)
             return peers_data
         except FileNotFoundError:
-            return []  
+            return []
         except json.JSONDecodeError as e:
             logging.error(f"Couldn't decode JSON for {file_path}: {e}")
             return []
@@ -1772,9 +1771,9 @@ def monitor_traffic():
         file_path = obtain_peers_file(config_name)
         try:
             with open(file_path, "w") as f:
-                fcntl.flock(f, fcntl.LOCK_EX) 
+                fcntl.flock(f, fcntl.LOCK_EX)
                 json.dump(peers_data, f, indent=4)
-                fcntl.flock(f, fcntl.LOCK_UN)  
+                fcntl.flock(f, fcntl.LOCK_UN)
             logging.info(f"Successfully saved peers to {file_path}.")
         except Exception as e:
             logging.error(f"Couldn't save peers to {file_path}: {e}")
@@ -1808,14 +1807,23 @@ def monitor_traffic():
                             logging.error(f"Wrong transfer stats for peer {peer['peer_name']} in wg_output.")
                             continue
 
-                        total_bytes = received_bytes + sent_bytes
+                        last_received = peer.get("last_received_bytes", 0)
+                        last_sent = peer.get("last_sent_bytes", 0)
 
-                        peer["used"] = total_bytes
-                        peer["remaining"] = max(0, limit_bytes - total_bytes)
+                        if received_bytes < last_received or sent_bytes < last_sent:
+                            logging.info(f"Detected reset for peer {peer['peer_name']}.")
+                            additional_bytes = received_bytes + sent_bytes
+                        else:
+                            additional_bytes = (received_bytes - last_received) + (sent_bytes - last_sent)
 
-                        if total_bytes >= limit_bytes and not peer.get("monitor_blocked", False):
+                        peer["used"] += max(0, additional_bytes)
+                        peer["remaining"] = max(0, limit_bytes - peer["used"])
+                        peer["last_received_bytes"] = received_bytes
+                        peer["last_sent_bytes"] = sent_bytes
+
+                        if peer["used"] >= limit_bytes and not peer.get("monitor_blocked", False):
                             logging.info(f"Blocking {peer['peer_name']} ({peer_ip}) - Exceeded Limit")
-                            if add_blackhole_route(peer_ip): 
+                            if add_blackhole_route(peer_ip):
                                 peer["monitor_blocked"] = True
                                 logging.warning(f"Peer '{peer['peer_name']}' has been blocked due to usage limit.")
                             else:
