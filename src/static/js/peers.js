@@ -640,19 +640,21 @@ window.applyFilter = applyFilter;
         showConfirm(`Are you sure you want to delete peer ${peerName}?`, async (confirmed) => {
             if (confirmed) {
                 try {
+                    const configFile = config || "wg0.conf";
+
                     const response = await fetch(`/api/delete-peer`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ peerName }),
+                        body: JSON.stringify({ peerName, configFile }),
                     });
 
                     const data = await response.json();
                     if (response.ok) {
                         showAlert(data.message || "Peer deleted successfully.");
-                        fetchPeers(config); 
+                        fetchPeers(config);  
                         resolve();  
                     } else {
-                        showAlert(data.error || "deleting peer failed.");
+                        showAlert(data.error || "Deleting peer failed.");
                         reject();  
                     }
                 } catch (error) {
@@ -665,6 +667,7 @@ window.applyFilter = applyFilter;
         });
     });
 };
+
     
 const resetTraffic = async (peerName, config) => {
     if (!peerName) {
