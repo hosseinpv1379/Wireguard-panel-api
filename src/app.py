@@ -1943,7 +1943,7 @@ def add_blackhole_route(peer_ip):
         return True
 
     except subprocess.CalledProcessError as e:
-        print(f"Error in adding blackhole route for {sanitized_ip}: {e}")
+        print(f"error in adding blackhole route for {sanitized_ip}: {e}")
         return False
     except ValueError as e:
         print(f"Invalid IP address provided: {e}")
@@ -1970,7 +1970,7 @@ def remove_blackhole_route(peer_ip):
         return True
 
     except subprocess.CalledProcessError as e:
-        print(f"Error in removing blackhole route for {sanitized_ip}: {e}")
+        print(f"error in removing blackhole route for {sanitized_ip}: {e}")
         return False
     except ValueError as e:
         print(f"Invalid IP address provided: {e}")
@@ -2653,7 +2653,7 @@ def update_custom_ip():
         set_custom_ip(custom_ip)
         return jsonify(message="Custom IP/Subdomain updated successfully")
     except Exception as e:
-        return jsonify(error=f"Error in updating custom IP/Subdomain: {str(e)}"), 500
+        return jsonify(error=f"error in updating custom IP/Subdomain: {str(e)}"), 500
 
 
 def read_file_content(file_name):
@@ -2946,7 +2946,7 @@ def toggle_peer():
         )
 
     except Exception as e:
-        print(f"Error in toggling peer: {e}")
+        print(f"error in toggling peer: {e}")
         return jsonify(error="Couldn't toggle peer state."), 500
 
 
@@ -3026,9 +3026,9 @@ def reload_blocked_peers():
                     else:
                         logging.info(f"Peer {peer['peer_name']} does not meet blocking criteria.")
             except Exception as e:
-                logging.error(f"Error in processing peers for {config_file}: {e}")
+                logging.error(f"error in processing peers for {config_file}: {e}")
     except Exception as e:
-        logging.error(f"Error in reloading blocked peers: {e}")
+        logging.error(f"error in reloading blocked peers: {e}")
 
 
 
@@ -3684,13 +3684,13 @@ def delete_peer():
     try:
         data = request.json
         peer_name = data.get("peerName")
-        config_file = data.get("configFile", "wg0.conf")  
+        config_file = data.get("configFile") 
 
         if not peer_name:
             return jsonify(error="Peer name is required."), 400
 
-        if not re.match(r"^[a-zA-Z0-9_-]+\.conf$", config_file):
-            return jsonify(error="Wrong config file name."), 400
+        if not config_file or not re.match(r"^[a-zA-Z0-9_-]+\.conf$", config_file):
+            return jsonify(error="Valid config file name is required."), 400
 
         peers = load_peers_from_json(config_file)
 
@@ -3702,14 +3702,20 @@ def delete_peer():
         public_key = sanitize_public_key(peer["public_key"])
 
         try:
-            wg_path = "wg"  
-            result = subprocess.run([wg_path, "set", interface, "peer", public_key, "remove"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            wg_path = "wg"
+            result = subprocess.run(
+                [wg_path, "set", interface, "peer", public_key, "remove"],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
             if result.returncode != 0:
-                logging.error(f"error in removing peer from Wireguard: {result.stderr}")
-                return jsonify(error=f"Couldn't remove peer from Wireguard: {result.stderr}"), 500
+                logging.error(f"error in removing peer from WireGuard: {result.stderr}")
+                return jsonify(error=f"Couldn't remove peer from WireGuard: {result.stderr}"), 500
         except subprocess.CalledProcessError as e:
-            logging.error(f"error in removing peer from Wireguard: {e.stderr}")
-            return jsonify(error=f"Couldn't remove peer from Wireguard: {e.stderr}"), 500
+            logging.error(f"error in removing peer from WireGuard: {e.stderr}")
+            return jsonify(error=f"Couldn't remove peer from WireGuard: {e.stderr}"), 500
 
         peer_ip = peer.get("peer_ip")
         if peer_ip and not remove_blackhole_route(peer_ip):
@@ -3737,10 +3743,10 @@ def delete_peer():
             with open(config_path, "w") as conf_file:
                 conf_file.writelines(new_lines)
 
-            logging.info(f"Updated Wireguard config file '{config_path}'.")
+            logging.info(f"Updated WireGuard config file '{config_path}'.")
         except Exception as e:
-            logging.error(f"error in updating Wireguard config file '{config_path}': {e}")
-            return jsonify(error="Couldn't update Wireguard config file."), 500
+            logging.error(f"error in updating WireGuard config file '{config_path}': {e}")
+            return jsonify(error="Couldn't update WireGuard config file."), 500
 
         peers = [p for p in peers if p["peer_name"] != peer_name]
         save_peers_to_json(config_file, peers)
@@ -3749,6 +3755,7 @@ def delete_peer():
     except Exception as e:
         logging.error(f"error in deleting peer: {e}")
         return jsonify(error=f"error in deleting peer: {e}"), 500
+
 
 
 @app.route("/api/delete-all-configs", methods=["POST"])
