@@ -1750,7 +1750,6 @@ def save_peers_to_json(config_name: str, peers):
 
 
 def monitor_traffic():
-
     config_files = [f for f in os.listdir(WIREGUARD_CONFIG_DIR) if f.endswith(".conf")]
     interfaces = [config.split(".")[0] for config in config_files]
 
@@ -1798,6 +1797,8 @@ def monitor_traffic():
                 peer_ip = peer["peer_ip"]
                 limit_bytes = convert_to_bytes(peer["limit"])
 
+                previous_usage = peer.get("used", 0)
+
                 for line in wg_output.splitlines():
                     columns = line.split("\t")
                     if len(columns) >= 3 and columns[0] == peer["public_key"]:
@@ -1810,10 +1811,10 @@ def monitor_traffic():
 
                         total_bytes = received_bytes + sent_bytes
 
-                        peer["used"] = total_bytes
-                        peer["remaining"] = max(0, limit_bytes - total_bytes)
+                        peer["used"] = previous_usage + total_bytes
+                        peer["remaining"] = max(0, limit_bytes - peer["used"])
 
-                        if total_bytes >= limit_bytes and not peer.get("monitor_blocked", False):
+                        if peer["used"] >= limit_bytes and not peer.get("monitor_blocked", False):
                             logging.info(f"Blocking {peer['peer_name']} ({peer_ip}) - Exceeded Limit")
                             if add_blackhole_route(peer_ip): 
                                 peer["monitor_blocked"] = True
@@ -1831,6 +1832,7 @@ def monitor_traffic():
                 logging.warning(f"Non-critical error for interface {interface}: {e}")
         except Exception as e:
             logging.error(f"Unexpected error for interface {interface}: {e}")
+
 
 
 @app.route("/api/reset-traffic", methods=["POST"])
