@@ -152,14 +152,30 @@ cache = Cache(app)
 
 def get_system_timezone():
     try:
-        result = subprocess.run(['timedatectl'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True, shell=False)
+        with open("/etc/timezone", "r") as tz_file:
+            etc_timezone = tz_file.read().strip()
         
-        for line in result.stdout.split('\n'):
-            if 'Time zone' in line:
-                return line.split(':')[1].strip().split(' ')[0]
+        localtime_symlink = os.readlink("/etc/localtime")
+        expected_symlink = f"/usr/share/zoneinfo/{etc_timezone}"
+
+        if localtime_symlink != expected_symlink:
+            print("[WARNING] Mismatch detected between /etc/timezone and /etc/localtime.")
+            print(f"/etc/timezone: {etc_timezone}")
+            print(f"/etc/localtime points to: {localtime_symlink}")
+
+            print("[INFO] Fixing the time zone configuration...")
+            subprocess.run(["sudo", "echo", etc_timezone, "|", "tee", "/etc/timezone"], check=True, shell=True)
+            subprocess.run(["sudo", "dpkg-reconfigure", "-f", "noninteractive", "tzdata"], check=True)
+            print("[INFO] Time zone configuration synchronized.")
+
+            with open("/etc/timezone", "r") as tz_file:
+                etc_timezone = tz_file.read().strip()
+        
+        return etc_timezone
+
     except Exception as e:
-        print(f"[ERROR] Could not detect system timezone: {e}")
-        return "UTC"  
+        print(f"[ERROR] Could not detect or fix system timezone: {e}")
+        return "UTC"
 
 system_timezone = pytz.timezone(get_system_timezone())
 print(f"[INFO] Detected System Timezone: {system_timezone}")
@@ -4516,3 +4532,5 @@ if __name__ == "__main__":
         logging.info("Shutting down application.")
         if scheduler:
             scheduler.shutdown(wait=False)
+
+
