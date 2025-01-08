@@ -586,10 +586,15 @@ deleteBtn.onclick = async () => {
     showConfirm(`Are you sure you want to delete peer ${peer.peer_name}?`, async (confirmed) => {
         if (confirmed) {
             try {
+                const configFile = peer.config || "wg0.conf";  
+
                 const response = await fetch("/api/delete-peer", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ peerName: peer.peer_name }),
+                    body: JSON.stringify({
+                        peerName: peer.peer_name,
+                        configFile: configFile 
+                    }),
                 });
                 const result = await response.json();
                 if (response.ok) {
@@ -599,11 +604,12 @@ deleteBtn.onclick = async () => {
                     showAlert(result.error || "Couldn't delete peer.");
                 }
             } catch (error) {
-                console.error("error in deleting peer:", error);
+                console.error("Error in deleting peer:", error);
             }
         }
     });
 };
+
 
             const editBtn = document.createElement("button");
             editBtn.title = "Edit Peer";
