@@ -282,6 +282,7 @@ systemctl stop telegram-bot-en
 - اپدیت keepalive به بات اضافه شد
 - اپدیت available ips برای بات اضافه شد. از این به بعد به درستی باید ایپی های موجود را نشان دهد
 - اپدیت تایم زون در app.py انجام شد
+- مشکلات delete peer در صفحه اصلی حل شد
   </details>
 </div>
 
