@@ -4,6 +4,36 @@
 ----------------------------------
  <div align="right">
   <details>
+    <summary><strong><img src="https://github.com/user-attachments/assets/bf3c8113-cdd1-4c57-a744-796d7530d565" alt="Image"> مشکلات تایم زون مختلف (بخوانید)</strong></summary>
+
+------------------------------------ 
+
+- اگر اوپتیمایزر نصب کردید و محاسبه زمان و حجم توقف کرد، حتما به خاطر وجود دو تایم زون در سیستم شما است که تا برطرف نشود، مشکل شما هم حل نمیشود
+- باید از دستورات زیر استفاده نمایید تا تایم زون و لوکال تایم با هم سینک باشند
+- بعد از سینک کردن ان، باید پنل را ریست نمایید
+ <div align="left">
+  
+```
+cat /etc/timezone
+به طور مثال این را میبینید Etc/UTC, Europe/Berlin
+ls -l /etc/localtime
+به طور مثال این را میبینید /usr/share/zoneinfo/Europe/Berlin
+خب بین انها Mismatch آست و باید درست شود
+echo "Europe/Berlin" | sudo tee /etc/timezone
+sudo dpkg-reconfigure -f noninteractive tzdata
+cat /etc/timezone
+ls -l /etc/localtime
+بررسی کنید هر دو یکی باشد
+timedatectl
+حالا اگر همه چی درست بود باید پنل را ریست نمایید
+```
+
+------------------------------------ 
+
+  </details>
+</div>
+ <div align="right">
+  <details>
     <summary><strong><img src="https://github.com/user-attachments/assets/0ddf06f0-04c1-4d5a-bbb8-d784015e93d2" alt="Image"> مشکلات احتمالی (بخوانید)</strong></summary>
 
 ------------------------------------ 
