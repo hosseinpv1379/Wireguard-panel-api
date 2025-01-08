@@ -211,6 +211,22 @@ systemctl stop telegram-bot-en
 
 </details>
 </div>
+<div align="right">
+  <details>
+    <summary><strong><img src="https://github.com/user-attachments/assets/5ca10d06-15c9-45b6-99d0-498bf4e80c9c" alt="Image"> نحوه گرفتن بک اپ</strong></summary>
+
+------------------------------------ 
+
+- از داخل پنل یا بات یک backup دستی ایجاد نمایید. این در پوشه backups با نام manualbackup.zip ذخیره میشود.
+- این فایل از محتویات wg interface و db بک اپ میگیرد .
+- در صورت نصب پنل جدید همین فایل را در پوشه backups قرار دهید و توسط بات یا پنل ریستور کنید. گزینه ای با این نام داخل پنل و بات موجود میباشد
+- روش دیگر برای بازگردانی بک اپ کاربران باز کردن این فایل zip و کپی کردن محتویات فایل های wg0.conf یا wg1.conf به داخل پوشه etc/wireguard است و پوشه db هم در داخل usr/local/bin/Wireguard-panel/src/db بریزید
+- یا میتوانید از کل پنل یک کپی در روی کامپیوتر خود بریزید. بهتر است این روش ها را از قبل تست نمایید تا با نحوه کار آن اشنا شوید
+
+ 
+
+  </details>
+</div>
 
 -------------------
 
