@@ -179,6 +179,33 @@ display_menu() {
 }
 
 
+install_newupdate() {
+    VENV_DIR="/usr/local/bin/Wireguard-panel/src/venv"
+
+    echo -e "${CYAN}Activating venv...${NC}"
+
+    if [ -d "$VENV_DIR" ]; then
+        source "$VENV_DIR/bin/activate"
+        if [ $? -ne 0 ]; then
+            echo -e "${LIGHT_RED}[Error]: Couldn't activate the venv.${NC}"
+            return 1
+        fi
+
+        echo -e "${LIGHT_YELLOW}Installing jdatetime...${NC}"
+        pip install jdatetime
+        if [ $? -ne 0 ]; then
+            echo -e "${LIGHT_RED}[Error]: Couldn't install jdatetime.${NC}"
+            deactivate
+            return 1
+        fi
+
+        deactivate
+        echo -e "${LIGHT_GREEN}✔ jdatetime installed & venv deactivated.${NC}"
+    else
+        echo -e "${LIGHT_RED}[Error]: Venv not found at $VENV_DIR.${NC}"
+        return 1
+    fi
+}
 
 select_stuff() {
     case $1 in
@@ -200,6 +227,7 @@ select_stuff() {
 }
 
 update_files() {
+    install_newupdate
     REPO_URL="https://github.com/Azumi67/Wireguard-panel.git"
     TMP_DIR="/tmp/wireguard-panel-update"
     SCRIPT_DIR="/usr/local/bin/Wireguard-panel"
@@ -214,7 +242,7 @@ update_files() {
     echo -e "${LIGHT_YELLOW}Cloning repository...${NC}"
     git clone "$REPO_URL" "$TMP_DIR"
     if [ $? -ne 0 ]; then
-        echo -e "${LIGHT_RED}[Error]: Failed to clone repository.${NC}"
+        echo -e "${LIGHT_RED}[Error]: Couldn't clone repo.${NC}"
         return
     fi
 
@@ -235,8 +263,15 @@ update_files() {
     fi
 
     if [ -d "$TMP_DIR/src/static" ]; then
-        sudo rm -rf "$SCRIPT_DIR/src/static"
-        sudo mv "$TMP_DIR/src/static" "$SCRIPT_DIR/src/" && echo -e "${LIGHT_GREEN}✔ Updated: static${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: static${NC}"
+        echo -e "${LIGHT_YELLOW}Updating static directory, skipping static/images...${NC}"
+        sudo mkdir -p "$SCRIPT_DIR/src/static" 
+        for item in "$TMP_DIR/src/static/"*; do
+            if [ "$(basename "$item")" != "images" ]; then
+                sudo cp -r "$item" "$SCRIPT_DIR/src/static/" && \
+                echo -e "${LIGHT_GREEN}✔ Updated: $(basename "$item") in static directory${NC}" || \
+                echo -e "${LIGHT_RED}✘ Failed to update: $(basename "$item") in static directory${NC}"
+            fi
+        done
     else
         echo -e "${LIGHT_RED}[Error]: static directory not found in repository.${NC}"
     fi
@@ -260,6 +295,20 @@ update_files() {
         echo -e "${LIGHT_RED}[Error]: telegram/robot-fa.py not found in repository.${NC}"
     fi
 
+    if [ -d "$TMP_DIR/src/telegram/static" ]; then
+        echo -e "${LIGHT_YELLOW}Updating telegram/static directory, skipping static/images...${NC}"
+        sudo mkdir -p "$SCRIPT_DIR/src/telegram/static" 
+        for item in "$TMP_DIR/src/telegram/static/"*; do
+            if [ "$(basename "$item")" != "images" ]; then
+                sudo cp -r "$item" "$SCRIPT_DIR/src/telegram/static/" && \
+                echo -e "${LIGHT_GREEN}✔ Updated: $(basename "$item") in telegram/static directory${NC}" || \
+                echo -e "${LIGHT_RED}✘ Failed to update: $(basename "$item") in telegram/static directory${NC}"
+            fi
+        done
+    else
+        echo -e "${LIGHT_RED}[Error]: telegram/static directory not found in repository.${NC}"
+    fi
+
     if [ -f "$TMP_DIR/src/setup.sh" ]; then
         sudo mv "$TMP_DIR/src/setup.sh" "$SCRIPT_DIR/src/" && echo -e "${LIGHT_GREEN}✔ Updated: setup.sh${NC}" || echo -e "${LIGHT_RED}✘ Failed to update: setup.sh${NC}"
         sudo chmod +x "$SCRIPT_DIR/src/setup.sh" && echo -e "${LIGHT_GREEN}✔ setup.sh is now executable.${NC}" || echo -e "${LIGHT_RED}✘ Failed to make setup.sh executable.${NC}"
@@ -275,13 +324,14 @@ update_files() {
     cd "$SCRIPT_DIR/src" || { echo -e "${LIGHT_RED}[Error]: Failed to navigate to $SCRIPT_DIR/src.${NC}"; return; }
     sudo ./setup.sh
     if [ $? -ne 0 ]; then
-        echo -e "${LIGHT_RED}✘ setup.sh execution failed. Please check the script for errors.${NC}"
+        echo -e "${LIGHT_RED}✘ setup.sh failed. Please check the script for errors.${NC}"
         return
     fi
 
     echo -e "${LIGHT_GREEN}✔ setup.sh ran successfully.${NC}"
     echo -e "${LIGHT_GREEN}Update completed successfully!${NC}"
 }
+
 
 
 show_logs() {
