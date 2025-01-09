@@ -618,7 +618,8 @@ setup_virtualenv() {
         Pillow \
         arabic-reshaper \
         python-bidi \
-        pytz || {
+        pytz \
+        jdatetime || {
             echo -e "${ERROR}Couldn't install Python requirements. check the error messages and try again.${NC}"
             deactivate
             exit 1
