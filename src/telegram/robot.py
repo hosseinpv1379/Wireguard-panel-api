@@ -11,6 +11,9 @@ from telegram.ext import ConversationHandler, MessageHandler
 from telegram.ext import filters
 from telegram import ReplyKeyboardRemove
 from telegram.ext import ApplicationBuilder
+from datetime import datetime, timedelta
+from pytz import timezone
+from jdatetime import date as jdate 
 import asyncio
 from cryptography.fernet import Fernet
 import yaml
@@ -1493,68 +1496,109 @@ async def peer_decision(update: Update, context: CallbackContext):
 
 async def download_peerconfig_general(update: Update, context: CallbackContext):
     query = update.callback_query
-    peer_name = context.user_data.get("peer_name")
-    config_file = context.user_data.get("selected_config") or context.user_data.get("selected_interface", "wg0.conf")
+    await query.answer()
 
-    if not config_file.endswith(".conf"):
-        config_file += ".conf"
+    peer_name = query.data.replace("download_", "")
+    config_file = context.user_data.get("selected_config")
 
-    if not config_file:
-        await query.message.reply_text("❌ Wireguard configuration file not found. Please restart the bot.")
+    if not config_file or not config_file.endswith(".conf"):
+        await query.message.reply_text("❌ Wireguard config file not found. Restart the process, please.")
         return
+
+    expiry_days = context.user_data.get("expiry_days", 1)  
+    data_limit = context.user_data.get("data_limit", "N/A")
+
+    tehran_tz = timezone("Asia/Tehran")
+    now_tehran = datetime.now(tehran_tz).date()
+
+    current_jalali_date = jdate.fromgregorian(date=now_tehran)
+
+    expiry_date_jalali = current_jalali_date + timedelta(days=expiry_days)
+
+    expiry_date_jalali_str = f"{expiry_date_jalali.year}/{expiry_date_jalali.month:02}/{expiry_date_jalali.day:02}"
 
     url = f"{API_BASE_URL}/api/download-peer-config?peerName={peer_name}&config={config_file}"
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers={"Authorization": f"Bearer {API_KEY}"}) as response:
             if response.status == 200:
                 peer_config = await response.text()
+                
+                keyboard = [
+                    [
+                        InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu"),
+                        InlineKeyboardButton("📋 Peer List", callback_data="peer_list"),
+                    ]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+
                 await context.bot.send_document(
                     chat_id=query.message.chat_id,
                     document=BytesIO(peer_config.encode("utf-8")),
                     filename=f"{peer_name}.conf",
-                    caption=f"Configuration file for `{peer_name}`",
-                    parse_mode="Markdown"
+                    caption=(
+                        f"Configuration file for `{peer_name}`\n"
+                        f"👤 *Username:* `{peer_name}`\n"
+                        f"⏳ *Expiry Date:* `{expiry_days} day(s)`\n"
+                        f"📅 *Expiry Date (Solar):* `{expiry_date_jalali_str}`\n"
+                        f"📏 *Data Limit:* `{data_limit}`"
+                    ),
+                    parse_mode="Markdown",
+                    reply_markup=reply_markup
                 )
-                keyboard = [[InlineKeyboardButton("🔙 Back to Peers Menu", callback_data="peers_menu")]]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                await query.message.reply_text("Choose your next action:", reply_markup=reply_markup)
             else:
                 error = await response.json()
-                await query.message.reply_text(f"❌ Error: {error.get('error', 'Couldnt fetch configuration file')}")
-
-
+                await query.message.reply_text(f"❌ Error: {error.get('error', 'Retrieving the config file failed')}")
 
 async def generate_peerqr_general(update: Update, context: CallbackContext):
     query = update.callback_query
-    peer_name = context.user_data.get("peer_name")
-    config_file = context.user_data.get("selected_config") or context.user_data.get("selected_interface", "wg0.conf")
+    await query.answer()
 
-    if not config_file.endswith(".conf"):
-        config_file += ".conf"
+    peer_name = query.data.replace("qr_", "")
+    config_file = context.user_data.get("selected_config")
 
-    if not config_file:
-        await query.message.reply_text("❌ Wireguard configuration file not found. Please restart the bot.")
+    if not config_file or not config_file.endswith(".conf"):
+        await query.message.reply_text("❌ Wireguard config file not found. Restart the process, please.")
         return
 
-    url = f"{API_BASE_URL}/api/download-peer-qr?peerName={peer_name}&config={config_file}"
+    qr_url = f"{API_BASE_URL}/api/download-peer-qr?peerName={peer_name}&config={config_file}"
+    config_url = f"{API_BASE_URL}/api/download-peer-config?peerName={peer_name}&config={config_file}"
+
     async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers={"Authorization": f"Bearer {API_KEY}"}) as response:
-            if response.status == 200:
-                qr_image = await response.read()
-                await context.bot.send_photo(
-                    chat_id=query.message.chat_id,
-                    photo=BytesIO(qr_image),
-                    caption=f"📷 QR Code for peer `{peer_name}`",
-                    parse_mode="Markdown"
-                )
-                keyboard = [[InlineKeyboardButton("🔙 Back to Peers Menu", callback_data="peers_menu")]]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                await query.message.reply_text("Choose your next action:", reply_markup=reply_markup)
+        async with session.get(qr_url, headers={"Authorization": f"Bearer {API_KEY}"}) as qr_response:
+            if qr_response.status == 200:
+                qr_image = await qr_response.read()
             else:
-                error = await response.json()
-                await query.message.reply_text(f"❌ Error: {error.get+('error', 'Couldnt generate QR code')}")
+                error = await qr_response.json()
+                await query.message.reply_text(f"❌ Error fetching QR Code: {error.get('error', 'Unknown')}")
+                return
 
+        async with session.get(config_url, headers={"Authorization": f"Bearer {API_KEY}"}) as config_response:
+            if config_response.status == 200:
+                peer_config = await config_response.text()
+            else:
+                error = await config_response.json()
+                await query.message.reply_text(f"❌ Error fetching configuration: {error.get('error', 'Unknown')}")
+                return
 
+    keyboard = [
+        [
+            InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu"),
+            InlineKeyboardButton("📋 Peer List", callback_data="peer_list"),
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await context.bot.send_photo(
+        chat_id=query.message.chat_id,
+        photo=BytesIO(qr_image),
+        caption=(
+            f"📷 QR Code for user `{peer_name}`\n\n"
+            f"To copy the configuration, use the text below:\n"
+            f"```\n{peer_config}\n```"
+        ),
+        parse_mode="Markdown",
+        reply_markup=reply_markup
+    )
 
 async def init_deletepeer(update: Update, context: CallbackContext):
     chat_id = update.effective_chat.id
@@ -1679,8 +1723,20 @@ async def download_peerconfig_create(update: Update, context: CallbackContext):
     config_file = context.user_data.get("selected_config")
 
     if not config_file or not config_file.endswith(".conf"):
-        await query.message.reply_text("❌ Wireguard configuration file not found or invalid. Please restart the process.")
+        await query.message.reply_text("❌ Wireguard config file not found. restart please.")
         return
+
+    expiry_days = context.user_data.get("expiry_days", 1)  
+    data_limit = context.user_data.get("data_limit", "N/A")
+
+    tehran_tz = timezone("Asia/Tehran")
+    now_tehran = datetime.now(tehran_tz).date()
+
+    current_jalali_date = jdate.fromgregorian(date=now_tehran)
+
+    expiry_date_jalali = current_jalali_date + timedelta(days=expiry_days)
+
+    expiry_date_jalali_str = f"{expiry_date_jalali.year}/{expiry_date_jalali.month:02}/{expiry_date_jalali.day:02}"
 
     url = f"{API_BASE_URL}/api/download-peer-config?peerName={peer_name}&config={config_file}"
     async with aiohttp.ClientSession() as session:
@@ -1691,14 +1747,20 @@ async def download_peerconfig_create(update: Update, context: CallbackContext):
                     chat_id=query.message.chat_id,
                     document=BytesIO(peer_config.encode("utf-8")),
                     filename=f"{peer_name}.conf",
-                    caption=f"Configuration file for `{peer_name}`",
+                    caption=(
+                        f"Configuration file for `{peer_name}`\n"
+                        f"👤 *Username:* `{peer_name}`\n"
+                        f"⏳ *Expiry Date:* `{expiry_days} day(s)`\n"
+                        f"📅 *Expiry Date (Solar):* `{expiry_date_jalali_str}`\n"
+                        f"📏 *Data Limit:* `{data_limit}`"
+                    ),
                     parse_mode="Markdown"
                 )
             else:
                 error = await response.json()
-                await query.message.reply_text(f"❌ Error: {error.get('error', 'Couldnt fetch configuration file')}")
+                await query.message.reply_text(f"❌ Error: {error.get('error', 'retrieving the config file failed')}")
 
-async def generate_peerqr_create(update: Update, context: CallbackContext):
+async def generate_peerqr_create(update, context):
     query = update.callback_query
     await query.answer()
 
@@ -1706,24 +1768,39 @@ async def generate_peerqr_create(update: Update, context: CallbackContext):
     config_file = context.user_data.get("selected_config")
 
     if not config_file or not config_file.endswith(".conf"):
-        await query.message.reply_text("❌ Wireguard configuration file not found or invalid. Please restart the process.")
+        await query.message.reply_text("❌ Wireguard config file not found. restart please.")
         return
 
-    url = f"{API_BASE_URL}/api/download-peer-qr?peerName={peer_name}&config={config_file}"
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers={"Authorization": f"Bearer {API_KEY}"}) as response:
-            if response.status == 200:
-                qr_image = await response.read()
-                await context.bot.send_photo(
-                    chat_id=query.message.chat_id,
-                    photo=BytesIO(qr_image),
-                    caption=f"📷 QR Code for peer `{peer_name}`",
-                    parse_mode="Markdown"
-                )
-            else:
-                error = await response.json()
-                await query.message.reply_text(f"❌ Error: {error.get('error', 'Couldnt generate QR code')}")
+    qr_url = f"{API_BASE_URL}/api/download-peer-qr?peerName={peer_name}&config={config_file}"
+    config_url = f"{API_BASE_URL}/api/download-peer-config?peerName={peer_name}&config={config_file}"
 
+    async with aiohttp.ClientSession() as session:
+        async with session.get(qr_url, headers={"Authorization": f"Bearer {API_KEY}"}) as qr_response:
+            if qr_response.status == 200:
+                qr_image = await qr_response.read()
+            else:
+                error = await qr_response.json()
+                await query.message.reply_text(f"❌ error fetching QR Code: {error.get('error', 'Unknown')}")
+                return
+
+        async with session.get(config_url, headers={"Authorization": f"Bearer {API_KEY}"}) as config_response:
+            if config_response.status == 200:
+                peer_config = await config_response.text()
+            else:
+                error = await config_response.json()
+                await query.message.reply_text(f"❌ error fetching configuration: {error.get('error', 'Unknown')}")
+                return
+
+    await context.bot.send_photo(
+        chat_id=query.message.chat_id,
+        photo=BytesIO(qr_image),
+        caption=(
+            f"📷 QR Code for user `{peer_name}`\n\n"
+            f"To copy the configuration, use the text below:\n"
+            f"```\n{peer_config}\n```"
+        ),
+        parse_mode="Markdown"
+    )
 
 async def init_peer_create(update: Update, context: CallbackContext):
     chat_id = update.effective_chat.id
