@@ -561,43 +561,49 @@ window.applyFilter = applyFilter;
     });
 
     document.getElementById("editPeerForm").addEventListener("submit", async (event) => {
-        event.preventDefault();
+    event.preventDefault();
 
-        if (!selectedPeerForEdit) {
-            showAlert("هیچ کاربری انتخاب نشده است");
-            return;
+    if (!selectedPeerForEdit) {
+        showAlert("هیچ کاربری انتخاب نشده است");
+        return;
+    }
+
+    const configFile = configSelect.value; 
+
+    const payload = {
+        peerName: selectedPeerForEdit.peer_name,
+        configFile, 
+        dataLimit: `${document.getElementById("editDataLimit").value.trim()}${
+            document.getElementById("editDataLimitUnit").value === "GB" ? "GiB" : "MiB"
+        }`,
+        dns: document.getElementById("editDns").value.trim(),
+        expiryDays: parseInt(document.getElementById("editExpiryDays").value || 0),
+        expiryMonths: parseInt(document.getElementById("editExpiryMonths").value || 0),
+        expiryHours: parseInt(document.getElementById("editExpiryHours").value || 0),
+        expiryMinutes: parseInt(document.getElementById("editExpiryMinutes").value || 0),
+    };
+
+    try {
+        const response = await fetch("/api/edit-peer", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            showAlert(data.message || "اپدیت کاربر موفقیت آمیز بود");
+            document.getElementById("editPeerModal").style.display = "none";
+            fetchPeers(configFile); 
+        } else {
+            showAlert(data.error || "اپدیت کاربر موفقیت آمیز نبود");
         }
+    } catch (error) {
+        console.error("خطای اپدیت کاربر:", error);
+        showAlert("یک خطا رخ داد. لطفاً دوباره تلاش کنید.");
+    }
+});
 
-        const payload = {
-            peerName: selectedPeerForEdit.peer_name,
-            dataLimit: `${document.getElementById("editDataLimit").value}${document.getElementById("editDataLimitUnit").value === "GB" ? "GiB" : "MiB"}`,
-            dns: document.getElementById("editDns").value.trim(),
-            expiryDays: parseInt(document.getElementById("editExpiryDays").value || 0),
-            expiryMonths: parseInt(document.getElementById("editExpiryMonths").value || 0),
-            expiryHours: parseInt(document.getElementById("editExpiryHours").value || 0),
-            expiryMinutes: parseInt(document.getElementById("editExpiryMinutes").value || 0),
-        };
-
-        try {
-            const response = await fetch("/api/edit-peer", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-            });
-
-            const data = await response.json();
-            if (response.ok) {
-                showAlert(data.message || "اپدیت کاربر موفقیت امیز بود");
-                document.getElementById("editPeerModal").style.display = "none"; 
-                fetchPeers("wg0.conf"); 
-            } else {
-                showAlert(data.error || "اپدیت کاربر موفقیت امیز نبود");
-            }
-        } catch (error) {
-            console.error("خطای اپدیت کاربر:", error);
-            showAlert("error occurred. try again.");
-        }
-    });
 
     const togglePeerState = async (peerName, currentState, config) => {
     try {
