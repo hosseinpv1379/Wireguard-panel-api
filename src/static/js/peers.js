@@ -550,43 +550,47 @@ window.applyFilter = applyFilter;
     });
 
     document.getElementById("editPeerForm").addEventListener("submit", async (event) => {
-        event.preventDefault();
+    event.preventDefault();
 
-        if (!selectedPeerForEdit) {
-            showAlert("No peer selected for editing.");
-            return;
+    if (!selectedPeerForEdit) {
+        showAlert("No peer selected for editing.");
+        return;
+    }
+
+    const payload = {
+        peerName: selectedPeerForEdit.peer_name,
+        configFile: configSelect.value, 
+        dataLimit: `${document.getElementById("editDataLimit").value.trim()}${
+            document.getElementById("editDataLimitUnit").value === "GB" ? "GiB" : "MiB"
+        }`,
+        dns: document.getElementById("editDns").value.trim(),
+        expiryDays: parseInt(document.getElementById("editExpiryDays").value || 0),
+        expiryMonths: parseInt(document.getElementById("editExpiryMonths").value || 0),
+        expiryHours: parseInt(document.getElementById("editExpiryHours").value || 0),
+        expiryMinutes: parseInt(document.getElementById("editExpiryMinutes").value || 0),
+    };
+
+    try {
+        const response = await fetch("/api/edit-peer", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            showAlert(data.message || "Peer updated successfully!");
+            document.getElementById("editPeerModal").style.display = "none";
+            fetchPeers(configSelect.value); 
+            selectedPeerForEdit = null;
+        } else {
+            showAlert(data.error || "Updating peer failed.");
         }
-
-        const payload = {
-            peerName: selectedPeerForEdit.peer_name,
-            dataLimit: `${document.getElementById("editDataLimit").value}${document.getElementById("editDataLimitUnit").value === "GB" ? "GiB" : "MiB"}`,
-            dns: document.getElementById("editDns").value.trim(),
-            expiryDays: parseInt(document.getElementById("editExpiryDays").value || 0),
-            expiryMonths: parseInt(document.getElementById("editExpiryMonths").value || 0),
-            expiryHours: parseInt(document.getElementById("editExpiryHours").value || 0),
-            expiryMinutes: parseInt(document.getElementById("editExpiryMinutes").value || 0),
-        };
-
-        try {
-            const response = await fetch("/api/edit-peer", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-            });
-
-            const data = await response.json();
-            if (response.ok) {
-                showAlert(data.message || "Peer updated successfully!");
-                document.getElementById("editPeerModal").style.display = "none"; 
-                fetchPeers(selectedPeerForEdit.configFile, "", "", 1);
-            } else {
-                showAlert(data.error || "updating peer failed.");
-            }
-        } catch (error) {
-            console.error("updating peer error:", error);
-            showAlert("error occurred. try again.");
-        }
-    });
+    } catch (error) {
+        console.error("Updating peer error:", error);
+        showAlert("An error occurred. Please try again.");
+    }
+});
 
     const togglePeerState = async (peerName, currentState, config) => {
     try {
