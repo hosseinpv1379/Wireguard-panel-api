@@ -296,17 +296,19 @@ peer_schema = {
 edit_peer_schema = {
     "type": "object",
     "properties": {
-        "peerName": {"type": "string", "pattern": r"^[a-zA-Z0-9_-]+$"}, 
-        "dataLimit": {"type": "string", "pattern": r"^\d+(MiB|GiB)$"},  
-        "expiryMonths": {"type": "integer", "minimum": 0},
-        "expiryDays": {"type": "integer", "minimum": 0},
-        "expiryHours": {"type": "integer", "minimum": 0},
-        "expiryMinutes": {"type": "integer", "minimum": 0},
-        "dns": {"type": "string"},
+        "peerName": {"type": "string", "pattern": "^[a-zA-Z0-9_]+$"},
+        "dataLimit": {"type": ["string", "null"], "pattern": "^\d+(MiB|GiB)$"},
+        "dns": {"type": ["string", "null"]},
+        "expiryDays": {"type": ["integer", "null"], "minimum": 0},
+        "expiryMonths": {"type": ["integer", "null"], "minimum": 0},
+        "expiryHours": {"type": ["integer", "null"], "minimum": 0},
+        "expiryMinutes": {"type": ["integer", "null"], "minimum": 0},
+        "configFile": {"type": "string", "pattern": "^[a-zA-Z0-9_-]+\.conf$"}  
     },
     "required": ["peerName"],  
-    "additionalProperties": False,
+    "additionalProperties": False
 }
+
 
 @app.route("/api/health", methods=["GET"])
 def health_check():
@@ -1725,16 +1727,42 @@ def recover_from_backup(config_name: str):
         return []
 
 def load_peers_from_json(config_name: str):
+
     file_path = obtain_peers_file(config_name)
     with json_lock:
         try:
             with open(file_path, "r") as f:
-                return json.load(f)
+                peers = json.load(f)
+
+            fields_to_remove = ["blocked", "reset"]
+            fields_to_add = {
+                "last_received_bytes": 0,
+                "last_sent_bytes": 0,
+            }
+
+            updated = False
+            for peer in peers:
+                for field in fields_to_remove:
+                    if field in peer:
+                        del peer[field]
+                        updated = True
+
+                for field, default_value in fields_to_add.items():
+                    if field not in peer:
+                        peer[field] = default_value
+                        updated = True
+
+            if updated:
+                save_peers_to_json(config_name, peers)
+                print(f"Updated peers in {file_path} (removed fields and added missing fields).")
+
+            return peers
         except json.JSONDecodeError as e:
-            print(f"error in decoding JSON for {file_path}: {e}. Attempting recovery.")
+            print(f"Error decoding JSON for {file_path}: {e}. Attempting recovery.")
             return recover_from_backup(config_name)
         except FileNotFoundError:
-            return []  
+            return []
+
 
 
 def save_peers_to_json(config_name: str, peers):
@@ -1807,18 +1835,15 @@ def monitor_traffic():
                             logging.error(f"Wrong transfer stats for peer {peer['peer_name']} in wg_output.")
                             continue
 
-                        # Persist previous transfer values to detect resets
                         last_received = peer.get("last_received_bytes", 0)
                         last_sent = peer.get("last_sent_bytes", 0)
 
-                        # If wg transfer resets, treat counters as incremental
                         if received_bytes < last_received or sent_bytes < last_sent:
                             logging.info(f"Detected reset for peer {peer['peer_name']}.")
                             additional_bytes = received_bytes + sent_bytes
                         else:
                             additional_bytes = (received_bytes - last_received) + (sent_bytes - last_sent)
 
-                        # Update stats
                         peer["used"] += max(0, additional_bytes)
                         peer["remaining"] = max(0, limit_bytes - peer["used"])
                         peer["last_received_bytes"] = received_bytes
@@ -1847,11 +1872,10 @@ def monitor_traffic():
 
 @app.route("/api/reset-traffic", methods=["POST"])
 def reset_traffic():
-  
     try:
         data = request.json
         peer_name = data.get("peerName")
-        config_name = data.get("config", "wg0.conf") 
+        config_name = data.get("config", "wg0.conf")
 
         if not peer_name:
             return jsonify(error="Peer name is required."), 400
@@ -1870,20 +1894,17 @@ def reset_traffic():
 
         peer["used"] = 0
         peer["remaining"] = convert_to_bytes(peer["limit"])
-        peer["reset"] = False 
-        if peer.get("blocked"): 
-            peer["blocked"] = False
-            remove_blackhole_route(peer_ip) 
-
         save_peers_to_json(config_name, peers)
 
         return jsonify(
             success=True,
-            message = f"The traffic statistics for the user '{peer_name}' in the file {config_name} have been reset."
+            message=f"The traffic statistics for the user '{peer_name}' in the file {config_name} have been reset."
         )
     except Exception as e:
-        print(f"error in resetting traffic: {e}")
-        return jsonify(error=f"error in resetting traffic: {e}"), 500
+        print(f"Error in resetting traffic: {e}")
+        return jsonify(error=f"Error in resetting traffic: {e}"), 500
+
+
 
 
 @app.route("/api/reset-expiry", methods=["POST"])
@@ -1946,20 +1967,21 @@ def add_blackhole_route(peer_ip):
             text=True
         )
 
-        if check_route.returncode == 0 and f"blackhole {sanitized_ip}" in check_route.stdout:
-            print(f"Blackhole route for {sanitized_ip} already exists.")
-            return True  
+        if check_route.returncode == 0 and f"dev" in check_route.stdout:
+            print(f"Existing route found for {sanitized_ip}. Removing it.")
+            subprocess.run([ip_path, "route", "del", f"{sanitized_ip}/32"], check=True)
 
         subprocess.run([ip_path, "route", "add", "blackhole", f"{sanitized_ip}/32"], check=True)
         print(f"Successfully added blackhole route for {sanitized_ip}")
         return True
 
     except subprocess.CalledProcessError as e:
-        print(f"error in adding blackhole route for {sanitized_ip}: {e}")
+        print(f"Error in adding blackhole route for {sanitized_ip}: {e}")
         return False
     except ValueError as e:
         print(f"Invalid IP address provided: {e}")
         return False
+
 
 def remove_blackhole_route(peer_ip):
     try:
@@ -1973,6 +1995,10 @@ def remove_blackhole_route(peer_ip):
             text=True
         )
 
+        if check_route.returncode == 0 and f"dev" in check_route.stdout:
+            print(f"Route exists for {sanitized_ip}, but it is not a blackhole route. Not removing.")
+            return False
+
         if check_route.returncode != 0 or f"blackhole {sanitized_ip}" not in check_route.stdout:
             print(f"No blackhole route found for {sanitized_ip}. Nothing to remove.")
             return False
@@ -1982,7 +2008,7 @@ def remove_blackhole_route(peer_ip):
         return True
 
     except subprocess.CalledProcessError as e:
-        print(f"error in removing blackhole route for {sanitized_ip}: {e}")
+        print(f"Error in removing blackhole route for {sanitized_ip}: {e}")
         return False
     except ValueError as e:
         print(f"Invalid IP address provided: {e}")
@@ -2172,7 +2198,7 @@ def block_peer():
     try:
         data = request.json
         peer_name = data.get("peerName")
-        config_name = data.get("config", "wg0.conf") 
+        config_name = data.get("config", "wg0.conf")
 
         if not peer_name:
             return jsonify(error="Peer name is required."), 400
@@ -2183,7 +2209,7 @@ def block_peer():
         if not peer:
             return jsonify(error=f"Peer '{peer_name}' not found in {config_name}."), 404
 
-        if peer["blocked"]:
+        if peer["monitor_blocked"] and peer["expiry_blocked"]:
             return jsonify(
                 success=True,
                 message=f"Peer {peer_name} in {config_name} is already blocked."
@@ -2194,7 +2220,8 @@ def block_peer():
         if not success:
             return jsonify(error=f"Couldn't block peer {peer_name} in {config_name}."), 500
 
-        peer["blocked"] = True
+        peer["monitor_blocked"] = True
+        peer["expiry_blocked"] = True
         save_peers_to_json(config_name, peers)
 
         return jsonify(
@@ -2203,16 +2230,15 @@ def block_peer():
             message=f"Peer {peer_name} in {config_name} has been blocked."
         )
     except Exception as e:
-        print(f"error in blocking peer: {e}")
+        print(f"Error in blocking peer: {e}")
         return jsonify(error=str(e)), 500
-
 
 @app.route("/api/unblock-peer", methods=["POST"])
 def unblock_peer():
     try:
         data = request.json
         peer_name = data.get("peerName")
-        config_name = data.get("config", "wg0.conf") 
+        config_name = data.get("config", "wg0.conf")
 
         if not peer_name:
             return jsonify(error="Peer name is required."), 400
@@ -2223,7 +2249,7 @@ def unblock_peer():
         if not peer:
             return jsonify(error=f"Peer '{peer_name}' not found in {config_name}."), 404
 
-        if not peer["blocked"]:
+        if not peer["monitor_blocked"] and not peer["expiry_blocked"]:
             return jsonify(
                 success=True,
                 message=f"Peer {peer_name} in {config_name} is already unblocked."
@@ -2234,7 +2260,8 @@ def unblock_peer():
         if not success:
             return jsonify(error=f"Couldn't unblock peer {peer_name} in {config_name}."), 500
 
-        peer["blocked"] = False
+        peer["monitor_blocked"] = False
+        peer["expiry_blocked"] = False
         save_peers_to_json(config_name, peers)
 
         return jsonify(
@@ -2243,8 +2270,9 @@ def unblock_peer():
             message=f"Peer {peer_name} in {config_name} has been unblocked."
         )
     except Exception as e:
-        print(f"error in unblocking peer: {e}")
+        print(f"Error in unblocking peer: {e}")
         return jsonify(error=str(e)), 500
+
     
 
 def derive_public_key(private_key: str) -> str:
@@ -2927,23 +2955,23 @@ def toggle_peer():
         print(f"Current state of peer '{peer_name}': monitor_blocked={peer.get('monitor_blocked')}, expiry_blocked={peer.get('expiry_blocked')}")
 
         peer["monitor_blocked"] = blocked
-        peer["expiry_blocked"] = blocked  
-        peer["blocked"] = blocked  
+        peer["expiry_blocked"] = blocked
 
-        if not blocked:
+        if not blocked:  
             print(f"Enabling peer '{peer_name}'. Resetting values.")
-            
-            peer["remaining"] = convert_to_bytes(peer.get("limit", "0MiB"))  
-            peer["remaining_time"] = calculate_expiry_duration(peer.get("expiry_time", {}))  
-            peer["used"] = 0  
-            peer["reset"] = False  
+
+            peer["remaining"] = convert_to_bytes(peer.get("limit", "0MiB"))
+            peer["remaining_time"] = calculate_expiry_duration(peer.get("expiry_time", {}))
+            peer["used"] = 0
+            peer["last_received_bytes"] = 0  
+            peer["last_sent_bytes"] = 0   
 
             print(f"Unblocking IP: {peer['peer_ip']} for {config_name}")
             success = remove_blackhole_route(peer["peer_ip"])
             if not success:
                 print(f"Failed to remove blackhole route for {peer['peer_ip']}")
                 return jsonify(error=f"Couldn't unblock peer {peer_name} in {config_name}."), 500
-        else:
+        else:  
             print(f"Disabling peer '{peer_name}'. Blocking IP.")
             success = add_blackhole_route(peer["peer_ip"])
             if not success:
@@ -2958,8 +2986,9 @@ def toggle_peer():
         )
 
     except Exception as e:
-        print(f"error in toggling peer: {e}")
+        print(f"Error in toggling peer: {e}")
         return jsonify(error="Couldn't toggle peer state."), 500
+
 
 
 
@@ -3652,6 +3681,8 @@ def create_peer():
             "persistent_keepalive": persistent_keepalive,
             "mtu": mtu,
             "config": config_file,
+            "last_received_bytes": 0, 
+            "last_sent_bytes": 0,  
         }
 
         peers.append(peer)
@@ -3683,6 +3714,7 @@ def create_peer():
     except Exception as e:
         print(f"Error: {e}")  
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+
 
 
 def sanitize_public_key(public_key: str):
@@ -4101,7 +4133,10 @@ def edit_peer():
     try:
         data = request.json
         peer_name = data.get("peerName")
-        config_file = data.get("configFile", "wg0.conf")  
+        config_file = data.get("configFile")
+
+        if not config_file or not os.path.isfile(f"{WIREGUARD_CONFIG_DIR}/{config_file}"):
+            return jsonify({"error": f"Invalid or missing configuration file: {config_file}"}), 400
 
         if not peer_name or not re.match(r'^[a-zA-Z0-9_]+$', peer_name):
             return jsonify({"error": "Wrong peer name. Only letters, numbers, and underscores are allowed."}), 400
@@ -4133,7 +4168,7 @@ def edit_peer():
 
         peer = next((p for p in peers if p["peer_name"] == peer_name), None)
         if not peer:
-            return jsonify({"error": "Peer not found"}), 404
+            return jsonify({"error": f"Peer {peer_name} not found in {config_file}"}), 404
 
         if new_limit:
             peer["limit"] = new_limit
@@ -4160,8 +4195,9 @@ def edit_peer():
         save_peers_to_json(config_file, peers)
         return jsonify({"message": "Peer updated successfully", "peer": peer})
     except Exception as e:
-        print(f"error in editing peer: {e}")
+        print(f"Error in editing peer: {e}")
         return jsonify({"error": f"Couldn't update peer: {str(e)}"}), 500
+
 
 
 @app.route("/api/wireguard-details", methods=["GET"])
@@ -4458,7 +4494,7 @@ if __name__ == "__main__":
                 scheduler.add_job(
                     monitor_traffic,
                     "interval",
-                    seconds=25,
+                    seconds=30,
                     id="monitor_traffic",
                     max_instances=1,
                     replace_existing=True
