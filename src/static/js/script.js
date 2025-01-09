@@ -531,29 +531,32 @@ const renderPeers = (peers, config) => {
             qrCodeBtn.title = "Show QR Code";
             qrCodeBtn.innerHTML = `<i class="fas fa-qrcode"></i>`;
             qrCodeBtn.onclick = () => showQrCode(peer.peer_name, config);
-
             const resetBtn = document.createElement("button");
-            resetBtn.title = "Reset Traffic";
-            resetBtn.innerHTML = `<i class="fas fa-sync-alt"></i>`;
-            resetBtn.onclick = async () => {
-                try {
-                    const response = await fetch(`/api/reset-traffic`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ peerName: peer.peer_name }),
-                    });
-                    const data = await response.json();
-                    if (response.ok) {
-                        showAlert(data.message || "Traffic reset successfully!");
-                        fetchPeers(config); 
-                    } else {
-                        showAlert(data.error || "reset traffic has failed.");
-                    }
-                } catch (error) {
-                    console.error("resetting traffic error:", error);
-                    showAlert("error occurred. try again.");
-                }
-            };
+resetBtn.title = "Reset Traffic";
+resetBtn.innerHTML = `<i class="fas fa-sync-alt"></i>`;
+resetBtn.onclick = async () => {
+    try {
+        const response = await fetch("/api/reset-traffic", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                peerName: peer.peer_name,
+                config: config, 
+            }),
+        });
+        const data = await response.json();
+        if (response.ok) {
+            showAlert(data.message || "Traffic reset successfully!");
+            fetchPeers(config); 
+        } else {
+            showAlert(data.error || "reset traffic has failed.");
+        }
+    } catch (error) {
+        console.error("resetting traffic error:", error);
+        showAlert("error occurred. try again.");
+    }
+};
+            
             const resetExpiryBtn = document.createElement("button");
             resetExpiryBtn.title = "Reset Expiry Time";
             resetExpiryBtn.innerHTML = `<i class="fas fa-clock"></i>`;
@@ -689,8 +692,11 @@ document.getElementById("editPeerForm").addEventListener("submit", async (event)
     const expiryMonths = parseInt(document.getElementById("editExpiryMonths").value || 0);
     const expiryHours = parseInt(document.getElementById("editExpiryHours").value || 0);
     const expiryMinutes = parseInt(document.getElementById("editExpiryMinutes").value || 0);
+    const configFile = configSelect.value; 
+
     const payload = { 
         peerName: selectedPeerForEdit.peer_name,
+        configFile,
         dataLimit: dataLimit ? formattedLimit : null,
         dns,
         expiryDays,
@@ -708,18 +714,19 @@ document.getElementById("editPeerForm").addEventListener("submit", async (event)
 
         const data = await response.json();
         if (response.ok) {
-            showAlert(data.message || "Peer updated successfully!");
+            showAlert(data.message || "Peer updated successfully.");
             document.getElementById("editPeerModal").style.display = "none"; 
-            fetchPeers(configSelect.value); 
+            fetchPeers(configFile); 
             selectedPeerForEdit = null; 
         } else {
-            showAlert(data.error || "updating peer failed.");
+            showAlert(data.error || "Updating peer failed.");
         }
     } catch (error) {
-        console.error("updating peer error:", error);
-        showAlert("error occurred. try again.");
+        console.error("Updating peer error:", error);
+        showAlert("Error occurred. Please try again.");
     }
 });
+
 
 let isFiltering = false;
 let isSearching = false;
