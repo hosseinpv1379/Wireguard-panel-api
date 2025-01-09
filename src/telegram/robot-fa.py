@@ -14,6 +14,9 @@ from telegram import ReplyKeyboardRemove
 from telegram.ext import ApplicationBuilder
 import asyncio
 import yaml
+from datetime import datetime, timedelta
+from pytz import timezone
+from jdatetime import date as jdate 
 from telegram import InputFile
 from PIL import Image, ImageDraw, ImageFont
 from bidi.algorithm import get_display
@@ -1507,67 +1510,113 @@ async def peer_decision(update: Update, context: CallbackContext):
         await generate_peerqr_general(update, context)
 
 
+
 async def download_peerconfig_general(update: Update, context: CallbackContext):
     query = update.callback_query
-    peer_name = context.user_data.get("peer_name")
-    config_file = context.user_data.get("selected_config") or context.user_data.get("selected_interface", "wg0.conf")
+    await query.answer()
 
-    if not config_file.endswith(".conf"):
-        config_file += ".conf"
+    peer_name = query.data.replace("download_", "")
+    config_file = context.user_data.get("selected_config")
 
-    if not config_file:
-        await query.message.reply_text("❌ فایل تنظیمات وایرگارد پیدا نشد. لطفاً ربات را دوباره راه‌اندازی کنید.")
+    if not config_file or not config_file.endswith(".conf"):
+        await query.message.reply_text("❌ فایل تنظیمات وایرگارد پیدا نشد. لطفاً فرآیند را دوباره آغاز کنید.")
         return
+
+    expiry_days = context.user_data.get("expiry_days", 1)  
+    data_limit = context.user_data.get("data_limit", "N/A")
+
+    tehran_tz = timezone("Asia/Tehran")
+    now_tehran = datetime.now(tehran_tz).date()
+
+    current_jalali_date = jdate.fromgregorian(date=now_tehran)
+
+    expiry_date_jalali = current_jalali_date + timedelta(days=expiry_days)
+
+    expiry_date_jalali_str = f"{expiry_date_jalali.year}/{expiry_date_jalali.month:02}/{expiry_date_jalali.day:02}"
 
     url = f"{API_BASE_URL}/api/download-peer-config?peerName={peer_name}&config={config_file}"
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers={"Authorization": f"Bearer {API_KEY}"}) as response:
             if response.status == 200:
                 peer_config = await response.text()
+                
+                keyboard = [
+                    [
+                        InlineKeyboardButton("🔙 بازگشت به منو", callback_data="main_menu"),
+                        InlineKeyboardButton("📋 لیست کاربران", callback_data="peers_menu"),
+                    ]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+
                 await context.bot.send_document(
                     chat_id=query.message.chat_id,
                     document=BytesIO(peer_config.encode("utf-8")),
                     filename=f"{peer_name}.conf",
-                    caption=f"فایل تنظیمات برای `{peer_name}`",
-                    parse_mode="Markdown"
+                    caption=(
+                        f"فایل تنظیمات برای `{peer_name}`\n"
+                        f"👤 *نام کاربری:* `{peer_name}`\n"
+                        f"⏳ *تاریخ انقضا:* `{expiry_days} روز`\n"
+                        f"📅 *تاریخ انقضا (شمسی):* `{expiry_date_jalali_str}`\n"
+                        f"📏 *میزان حجم:* `{data_limit}`"
+                    ),
+                    parse_mode="Markdown",
+                    reply_markup=reply_markup
                 )
-                keyboard = [[InlineKeyboardButton("🔙 بازگشت به منوی کاربران", callback_data="peers_menu")]]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                await query.message.reply_text("چه کاری میخواهید انجام دهید ؟", reply_markup=reply_markup)
             else:
                 error = await response.json()
-                await query.message.reply_text(f"❌ خطا: {error.get('error', 'دریافت فایل تنظیمات ممکن نشد.')}")
+                await query.message.reply_text(f"❌ خطا: {error.get('error', 'عدم توانایی در دریافت فایل تنظیمات')}")
 
-
-async def generate_peerqr_general(update: Update, context: CallbackContext):
+async def generate_peerqr_general(update, context):
     query = update.callback_query
-    peer_name = context.user_data.get("peer_name")
-    config_file = context.user_data.get("selected_config") or context.user_data.get("selected_interface", "wg0.conf")
+    await query.answer()
 
-    if not config_file.endswith(".conf"):
-        config_file += ".conf"
+    peer_name = query.data.replace("qr_", "")
+    config_file = context.user_data.get("selected_config")
 
-    if not config_file:
-        await query.message.reply_text("❌ فایل تنظیمات وایرگارد پیدا نشد. لطفاً ربات را دوباره راه‌اندازی کنید.")
+    if not config_file or not config_file.endswith(".conf"):
+        await query.message.reply_text("❌ فایل تنظیمات وایرگارد پیدا نشد. لطفاً فرآیند را دوباره آغاز کنید.")
         return
 
-    url = f"{API_BASE_URL}/api/download-peer-qr?peerName={peer_name}&config={config_file}"
+    qr_url = f"{API_BASE_URL}/api/download-peer-qr?peerName={peer_name}&config={config_file}"
+    config_url = f"{API_BASE_URL}/api/download-peer-config?peerName={peer_name}&config={config_file}"
+
     async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers={"Authorization": f"Bearer {API_KEY}"}) as response:
-            if response.status == 200:
-                qr_image = await response.read()
-                await context.bot.send_photo(
-                    chat_id=query.message.chat_id,
-                    photo=BytesIO(qr_image),
-                    caption=f"📷 کد QR برای کاربر `{peer_name}`",
-                    parse_mode="Markdown"
-                )
-                keyboard = [[InlineKeyboardButton("🔙 بازگشت به منوی کاربران", callback_data="peers_menu")]]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                await query.message.reply_text("چه کاری میخواهید انجام دهید ؟", reply_markup=reply_markup)
+        async with session.get(qr_url, headers={"Authorization": f"Bearer {API_KEY}"}) as qr_response:
+            if qr_response.status == 200:
+                qr_image = await qr_response.read()
             else:
-                error = await response.json()
-                await query.message.reply_text(f"❌ خطا: {error.get('error', 'تولید کد QR ممکن نیست.')}")
+                error = await qr_response.json()
+                await query.message.reply_text(f"❌ خطا در دریافت QR Code: {error.get('error', 'نامشخص')}")
+                return
+
+        async with session.get(config_url, headers={"Authorization": f"Bearer {API_KEY}"}) as config_response:
+            if config_response.status == 200:
+                peer_config = await config_response.text()
+            else:
+                error = await config_response.json()
+                await query.message.reply_text(f"❌ خطا در دریافت تنظیمات: {error.get('error', 'نامشخص')}")
+                return
+
+    keyboard = [
+        [
+            InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu"),
+            InlineKeyboardButton("📋 لیست کاربران", callback_data="peers_menu"),
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await context.bot.send_photo(
+        chat_id=query.message.chat_id,
+        photo=BytesIO(qr_image),
+        caption=(
+            f"📷 کد QR برای کاربر `{peer_name}`\n\n"
+            f"برای کپی کردن تنظیمات، از متن زیر استفاده کنید:\n"
+            f"```\n{peer_config}\n```"
+        ),
+        parse_mode="Markdown",
+        reply_markup=reply_markup
+    )
+
 
 
 async def init_deletepeer(update: Update, context: CallbackContext):
@@ -1696,6 +1745,18 @@ async def download_peerconfig_create(update: Update, context: CallbackContext):
         await query.message.reply_text("❌ فایل تنظیمات وایرگارد پیدا نشد. لطفاً فرآیند را دوباره آغاز کنید.")
         return
 
+    expiry_days = context.user_data.get("expiry_days", 1)  
+    data_limit = context.user_data.get("data_limit", "N/A")
+
+    tehran_tz = timezone("Asia/Tehran")
+    now_tehran = datetime.now(tehran_tz).date()
+
+    current_jalali_date = jdate.fromgregorian(date=now_tehran)
+
+    expiry_date_jalali = current_jalali_date + timedelta(days=expiry_days)
+
+    expiry_date_jalali_str = f"{expiry_date_jalali.year}/{expiry_date_jalali.month:02}/{expiry_date_jalali.day:02}"
+
     url = f"{API_BASE_URL}/api/download-peer-config?peerName={peer_name}&config={config_file}"
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers={"Authorization": f"Bearer {API_KEY}"}) as response:
@@ -1705,7 +1766,13 @@ async def download_peerconfig_create(update: Update, context: CallbackContext):
                     chat_id=query.message.chat_id,
                     document=BytesIO(peer_config.encode("utf-8")),
                     filename=f"{peer_name}.conf",
-                    caption=f"فایل تنظیمات برای `{peer_name}`",
+                    caption=(
+                        f"فایل تنظیمات برای `{peer_name}`\n"
+                        f"👤 *نام کاربری:* `{peer_name}`\n"
+                        f"⏳ *تاریخ انقضا:* `{expiry_days} روز`\n"
+                        f"📅 *تاریخ انقضا (شمسی):* `{expiry_date_jalali_str}`\n"
+                        f"📏 *میزان حجم:* `{data_limit}`"
+                    ),
                     parse_mode="Markdown"
                 )
             else:
@@ -1713,7 +1780,7 @@ async def download_peerconfig_create(update: Update, context: CallbackContext):
                 await query.message.reply_text(f"❌ خطا: {error.get('error', 'عدم توانایی در دریافت فایل تنظیمات')}")
 
 
-async def generate_peerqr_create(update: Update, context: CallbackContext):
+async def generate_peerqr_create(update, context):
     query = update.callback_query
     await query.answer()
 
@@ -1724,20 +1791,36 @@ async def generate_peerqr_create(update: Update, context: CallbackContext):
         await query.message.reply_text("❌ فایل تنظیمات وایرگارد پیدا نشد. لطفاً فرآیند را دوباره آغاز کنید.")
         return
 
-    url = f"{API_BASE_URL}/api/download-peer-qr?peerName={peer_name}&config={config_file}"
+    qr_url = f"{API_BASE_URL}/api/download-peer-qr?peerName={peer_name}&config={config_file}"
+    config_url = f"{API_BASE_URL}/api/download-peer-config?peerName={peer_name}&config={config_file}"
+
     async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers={"Authorization": f"Bearer {API_KEY}"}) as response:
-            if response.status == 200:
-                qr_image = await response.read()
-                await context.bot.send_photo(
-                    chat_id=query.message.chat_id,
-                    photo=BytesIO(qr_image),
-                    caption=f"📷 کد QR برای کاربر `{peer_name}`",
-                    parse_mode="Markdown"
-                )
+        async with session.get(qr_url, headers={"Authorization": f"Bearer {API_KEY}"}) as qr_response:
+            if qr_response.status == 200:
+                qr_image = await qr_response.read()
             else:
-                error = await response.json()
-                await query.message.reply_text(f"❌ خطا: {error.get('error', 'عدم توانایی در تولید کد QR')}")
+                error = await qr_response.json()
+                await query.message.reply_text(f"❌ خطا در دریافت QR Code: {error.get('error', 'نامشخص')}")
+                return
+
+        async with session.get(config_url, headers={"Authorization": f"Bearer {API_KEY}"}) as config_response:
+            if config_response.status == 200:
+                peer_config = await config_response.text()
+            else:
+                error = await config_response.json()
+                await query.message.reply_text(f"❌ خطا در دریافت تنظیمات: {error.get('error', 'نامشخص')}")
+                return
+
+    await context.bot.send_photo(
+        chat_id=query.message.chat_id,
+        photo=BytesIO(qr_image),
+        caption=(
+            f"📷 کد QR برای کاربر `{peer_name}`\n\n"
+            f"برای کپی کردن تنظیمات، از متن زیر استفاده کنید:\n"
+            f"```\n{peer_config}\n```"
+        ),
+        parse_mode="Markdown"
+    )
 
 async def init_peer_create(update: Update, context: CallbackContext):
     chat_id = update.effective_chat.id
@@ -1788,7 +1871,7 @@ async def select_config(update: Update, context: CallbackContext):
 
     keyboard = [[InlineKeyboardButton(f"🌐 {ip}", callback_data=f"ip_{ip}")] for ip in available_ips]
     await query.message.reply_text(
-        "🛠 *آدرس آی‌پی مورد نظر برای ایجاد کاربر را انتخاب کنید:*",
+        "🛠 *آدرس آی‌پی مورد نظر برای ایجاد پیر را انتخاب کنید:*",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown"
     )
