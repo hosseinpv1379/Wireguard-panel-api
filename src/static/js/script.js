@@ -404,6 +404,7 @@ toggleConfig.addEventListener("click", async () => {
 let peersData = []; 
 let currentPage = 1;
 const limit = 10; 
+let totalPages = 0;
 
 const fetchPeers = async (config, page = currentPage) => {
     try {
@@ -412,8 +413,9 @@ const fetchPeers = async (config, page = currentPage) => {
 
         if (response.ok) {
             peersData = data.peers || [];
-            renderPeers(peersData, config); 
-            renderPagination(data.current_page, data.total_pages, config); 
+            totalPages = data.total_pages || 0; 
+            renderPeers(peersData, config);
+            renderPagination(data.current_page, totalPages, config);
             currentPage = data.current_page; 
         } else {
             console.error(data.error || "Fetching peers failed.");
@@ -1107,12 +1109,16 @@ const toggleKeyVisibility = async () => {
 document.getElementById("configSelect").addEventListener("change", async () => {
     const selectedConfig = document.getElementById("configSelect").value; 
     if (!selectedConfig) {
-        showAlert("Please select a configuration.");
+        showAlert("Please select a configuration");
         return;
     }
 
     console.log(`Switching to configuration: ${selectedConfig}`);
-    await loadWireGuardDetails(selectedConfig); 
+
+    currentPage = 1;
+
+    await fetchPeers(selectedConfig, currentPage);
+    await loadWireGuardDetails(selectedConfig);
 });
 const resetTraffic = async (peerName, config) => {
     if (!peerName) {
