@@ -44,6 +44,27 @@ document.addEventListener('DOMContentLoaded', function () {
         safeCallback(false); 
     };
 }
+async function updateActiveGeosites() {
+        try {
+            const response = await fetch("/api/get-active-geosites");
+            const data = await response.json();
+            if (data.active_geosites) {
+                const activeGeosites = data.active_geosites;
+                activeGeosites.forEach((geosite) => {
+                    const checkbox = document.querySelector(`input[name="geosites"][value="${geosite}"]`);
+                    if (checkbox) {
+                        checkbox.checked = true;  
+                    }
+                });
+            } else {
+                console.error("Couldn't fetch active geosites:", data.error);
+            }
+        } catch (error) {
+            console.error("loading active geosites error:", error);
+        }
+    }
+
+    updateActiveGeosites();
 
     async function updateStatus() {
         try {
