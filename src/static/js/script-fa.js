@@ -410,6 +410,7 @@ toggleConfig.addEventListener("click", async () => {
 
 let peersData = []; 
 let currentPage = 1; 
+let totalPages = 0; 
 const limit = 10; 
 
 const fetchPeers = async (config, page = currentPage) => {
@@ -419,8 +420,9 @@ const fetchPeers = async (config, page = currentPage) => {
 
         if (response.ok) {
             peersData = data.peers || [];
+            totalPages = data.total_pages || 0; 
             renderPeers(peersData, config);
-            renderPagination(data.current_page, data.total_pages, config);
+            renderPagination(data.current_page, totalPages, config); 
             currentPage = data.current_page; 
         } else {
             console.error(data.error || "Fetching peers failed.");
@@ -1148,8 +1150,15 @@ document.getElementById("configSelect").addEventListener("change", async () => {
     }
 
     console.log(`Switching to configuration: ${selectedConfig}`);
-    await loadWireGuardDetails(selectedConfig); 
+
+    currentPage = 1;
+
+    await fetchPeers(selectedConfig, currentPage);  
+    renderPagination(currentPage, totalPages, selectedConfig);
+    await loadWireGuardDetails(selectedConfig);
 });
+
+
 const resetTraffic = async (peerName, config) => {
     if (!peerName) {
         alert("Peer name is required to reset traffic.");
