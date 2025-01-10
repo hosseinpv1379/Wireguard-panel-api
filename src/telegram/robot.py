@@ -1505,7 +1505,7 @@ async def download_peerconfig_general(update: Update, context: CallbackContext):
         await query.message.reply_text("❌ Wireguard config file not found. Restart the process, please.")
         return
 
-    expiry_days = context.user_data.get("expiry_days", 1)  
+    expiry_days = context.user_data.get("expiry_days", 1)
     data_limit = context.user_data.get("data_limit", "N/A")
 
     tehran_tz = timezone("Asia/Tehran")
@@ -1522,7 +1522,7 @@ async def download_peerconfig_general(update: Update, context: CallbackContext):
         async with session.get(url, headers={"Authorization": f"Bearer {API_KEY}"}) as response:
             if response.status == 200:
                 peer_config = await response.text()
-                
+
                 keyboard = [
                     [
                         InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu"),
@@ -1531,23 +1531,28 @@ async def download_peerconfig_general(update: Update, context: CallbackContext):
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
 
+                caption = (
+                    f"Configuration file for `{peer_name}`\n\n"
+                    f"👤 *Username:* `{peer_name}`\n"
+                    f"⏳ *Expiry Date:* `{expiry_days} day(s)`\n"
+                    f"📅 *Expiry Date (Solar):* `{expiry_date_jalali_str}`\n"
+                    f"📏 *Data Limit:* `{data_limit}`\n\n"
+                    f"📄 *File Content:*\n"
+                    f"```\n{peer_config}\n```"
+                )
+
                 await context.bot.send_document(
                     chat_id=query.message.chat_id,
                     document=BytesIO(peer_config.encode("utf-8")),
                     filename=f"{peer_name}.conf",
-                    caption=(
-                        f"Configuration file for `{peer_name}`\n"
-                        f"👤 *Username:* `{peer_name}`\n"
-                        f"⏳ *Expiry Date:* `{expiry_days} day(s)`\n"
-                        f"📅 *Expiry Date (Solar):* `{expiry_date_jalali_str}`\n"
-                        f"📏 *Data Limit:* `{data_limit}`"
-                    ),
+                    caption=caption,
                     parse_mode="Markdown",
                     reply_markup=reply_markup
                 )
             else:
                 error = await response.json()
                 await query.message.reply_text(f"❌ Error: {error.get('error', 'Retrieving the config file failed')}")
+
 
 async def generate_peerqr_general(update: Update, context: CallbackContext):
     query = update.callback_query
@@ -2178,37 +2183,48 @@ async def reset_action(update: Update, context: CallbackContext):
     peer_name = context.user_data["reset_peer_name"]
     selected_interface = context.user_data["selected_reset_interface"]
 
+    success_message = ""
+
     if query.data == "reset_traffic":
         payload = {"peerName": peer_name, "configFile": selected_interface}
         response = await api_stuff("api/reset-traffic", method="POST", data=payload)
         if "error" in response:
-            await query.message.reply_text(f"❌ error resetting traffic: `{response['error']}`", parse_mode="Markdown")
+            await query.message.reply_text(
+                f"❌ Error resetting traffic: `{response['error']}`", parse_mode="Markdown"
+            )
             return SHOW_PEER_INFO
 
-        await query.message.reply_text(f"✅ *Traffic reset successfully for peer '{peer_name}'!*", parse_mode="Markdown")
+        success_message = f"✅ *Traffic reset successfully for peer '{peer_name}'!*"
 
     elif query.data == "reset_expiry":
         payload = {"peerName": peer_name, "configFile": selected_interface}
         response = await api_stuff("api/reset-expiry", method="POST", data=payload)
         if "error" in response:
-            await query.message.reply_text(f"❌ error resetting expiry: `{response['error']}`", parse_mode="Markdown")
+            await query.message.reply_text(
+                f"❌ Error resetting expiry: `{response['error']}`", parse_mode="Markdown"
+            )
             return SHOW_PEER_INFO
 
-        await query.message.reply_text(f"✅ *Expiry reset successfully for peer '{peer_name}'!*", parse_mode="Markdown")
+        success_message = f"✅ *Expiry reset successfully for peer '{peer_name}'!*"
 
     keyboard = [
+        [InlineKeyboardButton("🔄 Reset Traffic", callback_data="reset_traffic")],
+        [InlineKeyboardButton("🔄 Reset Expiry", callback_data="reset_expiry")],
         [InlineKeyboardButton("🔙 Back to Peers Menu", callback_data="peers_menu")],
-        [InlineKeyboardButton("🏠 Back to Main Menu", callback_data="main_menu")]
+        [InlineKeyboardButton("🏠 Back to Main Menu", callback_data="main_menu")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await query.message.reply_text(
+        f"{success_message}\n\n"
         f"🎉 *Action completed for peer '{peer_name}'!*\n\n"
-        "You can return to the peers menu or main menu:",
+        "You can choose another action, return to the peers menu, or go back to the main menu:",
         reply_markup=reply_markup,
         parse_mode="Markdown"
     )
-    return ConversationHandler.END
+
+    return SHOW_PEER_INFO
+
 
 async def edit_peer_init(update: Update, context: CallbackContext):
     chat_id = update.effective_chat.id
