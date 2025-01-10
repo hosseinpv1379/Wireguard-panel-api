@@ -517,9 +517,10 @@ function applyFilter() {
 window.applyFilter = applyFilter;
 
     document.getElementById("configSelect").addEventListener("change", (event) => {
-        currentConfig = event.target.value;
-        fetchPeers(currentConfig); 
-    });
+    currentConfig = event.target.value;
+    currentPage = 1;  
+    fetchPeers(currentConfig);  
+});
 
     const createActionButton = (iconClass, title, onClick) => {
         const btn = document.createElement("button");
