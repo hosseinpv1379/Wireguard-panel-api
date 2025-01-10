@@ -1522,7 +1522,7 @@ async def download_peerconfig_general(update: Update, context: CallbackContext):
         await query.message.reply_text("❌ فایل تنظیمات وایرگارد پیدا نشد. لطفاً فرآیند را دوباره آغاز کنید.")
         return
 
-    expiry_days = context.user_data.get("expiry_days", 1)  
+    expiry_days = context.user_data.get("expiry_days", 1)
     data_limit = context.user_data.get("data_limit", "N/A")
 
     tehran_tz = timezone("Asia/Tehran")
@@ -1539,7 +1539,7 @@ async def download_peerconfig_general(update: Update, context: CallbackContext):
         async with session.get(url, headers={"Authorization": f"Bearer {API_KEY}"}) as response:
             if response.status == 200:
                 peer_config = await response.text()
-                
+
                 keyboard = [
                     [
                         InlineKeyboardButton("🔙 بازگشت به منو", callback_data="main_menu"),
@@ -1548,23 +1548,28 @@ async def download_peerconfig_general(update: Update, context: CallbackContext):
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
 
+                caption = (
+                    f"فایل تنظیمات برای `{peer_name}`\n\n"
+                    f"👤 *نام کاربری:* `{peer_name}`\n"
+                    f"⏳ *تاریخ انقضا:* `{expiry_days} روز`\n"
+                    f"📅 *تاریخ انقضا (شمسی):* `{expiry_date_jalali_str}`\n"
+                    f"📏 *میزان حجم:* `{data_limit}`\n\n"
+                    f"📄 *محتوای فایل تنظیمات:*\n"
+                    f"```\n{peer_config}\n```"
+                )
+
                 await context.bot.send_document(
                     chat_id=query.message.chat_id,
                     document=BytesIO(peer_config.encode("utf-8")),
                     filename=f"{peer_name}.conf",
-                    caption=(
-                        f"فایل تنظیمات برای `{peer_name}`\n"
-                        f"👤 *نام کاربری:* `{peer_name}`\n"
-                        f"⏳ *تاریخ انقضا:* `{expiry_days} روز`\n"
-                        f"📅 *تاریخ انقضا (شمسی):* `{expiry_date_jalali_str}`\n"
-                        f"📏 *میزان حجم:* `{data_limit}`"
-                    ),
+                    caption=caption,
                     parse_mode="Markdown",
                     reply_markup=reply_markup
                 )
             else:
                 error = await response.json()
                 await query.message.reply_text(f"❌ خطا: {error.get('error', 'عدم توانایی در دریافت فایل تنظیمات')}")
+
 
 async def generate_peerqr_general(update, context):
     query = update.callback_query
@@ -2209,36 +2214,48 @@ async def reset_action(update: Update, context: CallbackContext):
     selected_interface = context.user_data["selected_reset_interface"]
 
     if query.data == "reset_traffic":
-        payload = {"peerName": peer_name, "configFile": selected_interface}
+        payload = {"peerName": peer_name, "config": selected_interface}
         response = await api_stuff("api/reset-traffic", method="POST", data=payload)
         if "error" in response:
-            await query.message.reply_text(f"❌ خطا در ریست ترافیک: `{response['error']}`", parse_mode="Markdown")
-            return SHOW_PEER_INFO
+            await query.message.reply_text(
+                f"❌ خطا در ریست ترافیک: `{response['error']}`", parse_mode="Markdown"
+            )
+            return ConversationHandler.END
 
-        await query.message.reply_text(f"✅ *ترافیک برای کاربر '{peer_name}' با موفقیت ریست شد!*", parse_mode="Markdown")
+        await query.message.reply_text(
+            f"✅ *ترافیک برای کاربر '{peer_name}' با موفقیت ریست شد!*", parse_mode="Markdown"
+        )
 
     elif query.data == "reset_expiry":
-        payload = {"peerName": peer_name, "configFile": selected_interface}
+        payload = {"peerName": peer_name, "config": selected_interface}
         response = await api_stuff("api/reset-expiry", method="POST", data=payload)
         if "error" in response:
-            await query.message.reply_text(f"❌ خطا در ریست زمان انقضا: `{response['error']}`", parse_mode="Markdown")
-            return SHOW_PEER_INFO
+            await query.message.reply_text(
+                f"❌ خطا در ریست زمان انقضا: `{response['error']}`", parse_mode="Markdown"
+            )
+            return ConversationHandler.END
 
-        await query.message.reply_text(f"✅ *زمان انقضا برای کاربر '{peer_name}' با موفقیت ریست شد!*", parse_mode="Markdown")
+        await query.message.reply_text(
+            f"✅ *زمان انقضا برای کاربر '{peer_name}' با موفقیت ریست شد!*", parse_mode="Markdown"
+        )
 
     keyboard = [
+        [InlineKeyboardButton("🔄 ریست ترافیک", callback_data="reset_traffic")],
+        [InlineKeyboardButton("🔄 ریست زمان انقضا", callback_data="reset_expiry")],
         [InlineKeyboardButton("🔙 بازگشت به منوی کاربران", callback_data="peers_menu")],
-        [InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="main_menu")]
+        [InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="main_menu")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await query.message.reply_text(
         f"🎉 *عملیات برای کاربر '{peer_name}' انجام شد!*\n\n"
-        "می‌توانید به منوی کاربران یا منوی اصلی بازگردید:",
+        "لطفاً عملیات دیگری را انتخاب کنید یا به منوی کاربران یا منوی اصلی بازگردید:",
         reply_markup=reply_markup,
-        parse_mode="Markdown"
+        parse_mode="Markdown",
     )
-    return ConversationHandler.END
+
+    return SHOW_PEER_INFO  
+
 
 async def edit_peer_init(update: Update, context: CallbackContext):
     chat_id = update.effective_chat.id
