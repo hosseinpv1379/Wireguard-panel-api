@@ -1982,8 +1982,12 @@ def add_blackhole_route(peer_ip):
             text=True
         )
 
-        if check_route.returncode == 0 and f"dev" in check_route.stdout:
-            print(f"Existing route found for {sanitized_ip}. Removing it.")
+        if check_route.returncode == 0:
+            if f"blackhole {sanitized_ip}" in check_route.stdout:
+                print(f"Blackhole route already exists for {sanitized_ip}. Skipping.")
+                return True  
+
+            print(f"Existing non-blackhole route found for {sanitized_ip}. Removing it.")
             subprocess.run([ip_path, "route", "del", f"{sanitized_ip}/32"], check=True)
 
         subprocess.run([ip_path, "route", "add", "blackhole", f"{sanitized_ip}/32"], check=True)
@@ -1996,6 +2000,7 @@ def add_blackhole_route(peer_ip):
     except ValueError as e:
         print(f"Invalid IP address provided: {e}")
         return False
+
 
 
 def remove_blackhole_route(peer_ip):
