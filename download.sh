@@ -310,16 +310,12 @@ install_newupdate() {
 
 
 main() {
-    install_newupdate
-    if [ $? -ne 0 ]; then
-        echo -e "${LIGHT_RED}✘ venv failed. Aborting update.${NC}"
-        return 1
-    fi
     prompt_action  
 
     if [ "$ACTION_CHOICE" -eq 2 ]; then
         reinstall
     else
+        install_newupdate
         update_files
     fi
 
