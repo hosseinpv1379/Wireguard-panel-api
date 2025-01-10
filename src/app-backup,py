@@ -152,24 +152,45 @@ cache = Cache(app)
 
 def get_system_timezone():
     try:
-        result = subprocess.run(['/usr/bin/timedatectl'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True, shell=False)
+        with open("/etc/timezone", "r") as tz_file:
+            etc_timezone = tz_file.read().strip()
         
-        for line in result.stdout.split('\n'):
-            if 'Time zone' in line:
-                return line.split(':')[1].strip().split(' ')[0]
+        localtime_symlink = os.readlink("/etc/localtime")
+        expected_symlink = f"/usr/share/zoneinfo/{etc_timezone}"
+
+        if localtime_symlink != expected_symlink:
+            print("[WARNING] Mismatch detected between /etc/timezone and /etc/localtime.")
+            print(f"/etc/timezone: {etc_timezone}")
+            print(f"/etc/localtime points to: {localtime_symlink}")
+
+            print("[INFO] Fixing the time zone configuration...")
+            subprocess.run(["sudo", "echo", etc_timezone, "|", "tee", "/etc/timezone"], check=True, shell=True)
+            subprocess.run(["sudo", "dpkg-reconfigure", "-f", "noninteractive", "tzdata"], check=True)
+            print("[INFO] Time zone configuration synchronized.")
+
+            with open("/etc/timezone", "r") as tz_file:
+                etc_timezone = tz_file.read().strip()
+        
+        return etc_timezone
+
     except Exception as e:
-        print(f"[ERROR] Could not detect system timezone: {e}")
-        return "UTC"  
+        print(f"[ERROR] Could not detect or fix system timezone: {e}")
+        return "UTC"
 
 system_timezone = pytz.timezone(get_system_timezone())
 print(f"[INFO] Detected System Timezone: {system_timezone}")
 
 
-@app.route('/set-language', methods=['POST'])
+@app.route("/set-language", methods=["POST"])
 def set_language():
-    language = request.form.get('language', 'en')  
-    session['language'] = language
-    return redirect(request.referrer or url_for('home'))
+    selected_language = request.form.get("language")
+    if selected_language in ["en", "fa"]:
+        session["language"] = selected_language
+        response = make_response(redirect(request.referrer or url_for("home")))
+        response.set_cookie("language", selected_language, max_age=30*24*60*60)  
+        return response
+    return redirect(request.referrer or url_for("home"))
+
 
 
 @app.route('/api/login', methods=['POST'])
@@ -275,17 +296,19 @@ peer_schema = {
 edit_peer_schema = {
     "type": "object",
     "properties": {
-        "peerName": {"type": "string", "pattern": r"^[a-zA-Z0-9_-]+$"}, 
-        "dataLimit": {"type": "string", "pattern": r"^\d+(MiB|GiB)$"},  
-        "expiryMonths": {"type": "integer", "minimum": 0},
-        "expiryDays": {"type": "integer", "minimum": 0},
-        "expiryHours": {"type": "integer", "minimum": 0},
-        "expiryMinutes": {"type": "integer", "minimum": 0},
-        "dns": {"type": "string"},
+        "peerName": {"type": "string", "pattern": "^[a-zA-Z0-9_]+$"},
+        "dataLimit": {"type": ["string", "null"], "pattern": "^\d+(MiB|GiB)$"},
+        "dns": {"type": ["string", "null"]},
+        "expiryDays": {"type": ["integer", "null"], "minimum": 0},
+        "expiryMonths": {"type": ["integer", "null"], "minimum": 0},
+        "expiryHours": {"type": ["integer", "null"], "minimum": 0},
+        "expiryMinutes": {"type": ["integer", "null"], "minimum": 0},
+        "configFile": {"type": "string", "pattern": "^[a-zA-Z0-9_-]+\.conf$"}  
     },
     "required": ["peerName"],  
-    "additionalProperties": False,
+    "additionalProperties": False
 }
+
 
 @app.route("/api/health", methods=["GET"])
 def health_check():
@@ -458,7 +481,7 @@ def start_telegram():
             raise ValueError("Wrong service name. Must start with 'telegram-bot-'.")
         
         subprocess.run(
-            ["/bin/systemctl", "start", sanitized_service_name],  
+            ["systemctl", "start", sanitized_service_name],  
             check=True, 
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -492,7 +515,7 @@ def stop_telegram():
             raise ValueError("Wrong service name. Must start with 'telegram-bot-'.")
         
         subprocess.run(
-            ["/bin/systemctl", "stop", sanitized_service_name],  
+            ["systemctl", "stop", sanitized_service_name],  
             check=True,  
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -537,7 +560,7 @@ def uninstall_telegram():
             raise ValueError("Wrong service name. Must start with 'telegram-bot-'.")
         
         subprocess.run(
-            ["/bin/systemctl", "stop", sanitized_service_name], 
+            ["systemctl", "stop", sanitized_service_name], 
             check=True,  
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -545,7 +568,7 @@ def uninstall_telegram():
         )
 
         subprocess.run(
-            ["/bin/systemctl", "disable", sanitized_service_name],  
+            ["systemctl", "disable", sanitized_service_name],  
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -559,7 +582,7 @@ def uninstall_telegram():
             print(f"Service file {service_file} does not exist.")
 
         subprocess.run(
-            ["/bin/systemctl", "daemon-reload"],  
+            ["systemctl", "daemon-reload"],  
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -582,21 +605,22 @@ def uninstall_telegram():
             "error": str(e)
         }), 500
     
-@app.route("/get-admin-chat-id", methods=["GET"])
-def get_admin_chat_id():
+@app.route("/get-admin-chat-ids", methods=["GET"])
+def get_admin_chat_ids():
     try:
-        admin_chat_id = "1234567890" 
-        if os.path.exists(TELEGRAM_CONFIG_FILE):
-            with open(TELEGRAM_CONFIG_FILE, "r") as yaml_file:
-                yaml_config = yaml.safe_load(yaml_file) or {}
-                admin_chat_id = yaml_config.get("admin_chat_id", "")
-        
-        return jsonify({
-            "admin_chat_id": admin_chat_id
-        })
+        if not os.path.exists(TELEGRAM_CONFIG_FILE):
+            return jsonify({"error": "Config file not found"}), 404
+
+        with open(TELEGRAM_CONFIG_FILE, "r") as yaml_file:
+            yaml_config = yaml.safe_load(yaml_file) or {}
+            encrypted_chat_ids = yaml_config.get("admin_chat_ids", [])
+            admin_chat_ids = [cipher.decrypt(chat_id.encode()).decode() for chat_id in encrypted_chat_ids]
+
+        return jsonify({"admin_chat_ids": admin_chat_ids})
     except Exception as e:
-        print(f"error in loading telegram.yaml: {e}")
-        return jsonify({"error": "Couldn't load admin chat ID.", "details": str(e)}), 500
+        print(f"Error loading telegram.yaml: {e}")
+        return jsonify({"error": "Couldn't load admin chat IDs.", "details": str(e)}), 500
+
 
     
 @app.route("/bot-status", methods=["GET"])
@@ -616,7 +640,7 @@ def bot_status():
 
         safe_service_name = sanitized_service_name
 
-        command = ["/bin/systemctl", "is-active", safe_service_name]  
+        command = ["systemctl", "is-active", safe_service_name]  
         result = run_command(command)  
 
         
@@ -670,30 +694,35 @@ def delete_api_key(index):
 def save_telegram_config():
     try:
         data = request.json
+
         bot_token = data.get("bot_token")
         base_url = data.get("base_url")
         api_key = data.get("api_key")
-        admin_chat_id = data.get("admin_chat_id")
+        admin_chat_ids = data.get("admin_chat_ids")  
 
-        if not bot_token or not base_url or not api_key or not admin_chat_id:
+        if not bot_token or not base_url or not api_key or not admin_chat_ids:
             return jsonify({"message": "All fields are required!"}), 400
+
+        encrypted_chat_ids = [cipher.encrypt(chat_id.encode()).decode() for chat_id in admin_chat_ids]
 
         json_config = {
             "bot_token": bot_token,
             "base_url": base_url,
-            "api_key": api_key
+            "api_key": api_key,
         }
         with open(TELEGRAM_CONFIG_JSON, "w") as json_file:
             json.dump(json_config, json_file, indent=4)
 
-        yaml_config = {"admin_chat_id": admin_chat_id}
+        yaml_config = {"admin_chat_ids": encrypted_chat_ids}
         with open(TELEGRAM_CONFIG_FILE, "w") as yaml_file:
             yaml.safe_dump(yaml_config, yaml_file)
 
         return jsonify({"message": "Telegram config saved successfully!"})
-    
+
     except Exception as e:
         return jsonify({"message": "Couldn't save config.", "error": str(e)}), 500
+
+
 
 
 new_backup_created = False
@@ -801,7 +830,7 @@ def save_users(users):
 def track_statuses():
     def check_xray_status():
         try:
-            command = ["sudo", "/bin/systemctl", "is-active", "xray"]
+            command = ["sudo", "systemctl", "is-active", "xray"]
 
             result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             return result.stdout.strip() == 'active'
@@ -840,8 +869,9 @@ def obtain_web_config():
 
 @app.before_request
 def set_default_language():
-    if 'language' not in session:
-        session['language'] = 'en' 
+    if "language" not in session:
+        language = request.cookies.get("language", "en")
+        session["language"] = language
 
 @app.route("/")
 def index():
@@ -1044,7 +1074,7 @@ def update_flask_config():
                 service_name = "wireguard-panel.service"
 
                 subprocess.run(
-                    ["/bin/systemctl", "restart", service_name],  
+                    ["systemctl", "restart", service_name],  
                     check=True, 
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
@@ -1555,7 +1585,7 @@ def system_metrics_job():
             "uptime": uptime
         }
 
-        cache.set("metrics", metrics, timeout=10)
+        cache.set("metrics", metrics, timeout=9)
     except Exception as e:
         print(f"error in collecting metrics: {e}")
 
@@ -1573,7 +1603,7 @@ def valid_private_key(key: str) -> bool:
 @app.route('/api/interface-status', methods=['GET'])
 def interface_status():
     try:
-        wg_path = "/usr/bin/wg"  
+        wg_path = "wg"  
 
         if not os.path.isfile(wg_path) or not os.access(wg_path, os.X_OK):
             return jsonify({"error": f"wg command not found or not executable at {wg_path}"}), 500
@@ -1616,7 +1646,7 @@ def toggle_interface():
     sanitized_interface = sanitize_input(interface)  
 
     try:
-        wg_quick_path = "/usr/local/bin/wg-quick"  
+        wg_quick_path = "wg-quick"  
 
         command_down = [wg_quick_path, "down", sanitized_interface]
         command_up = [wg_quick_path, "up", sanitized_interface]
@@ -1666,7 +1696,7 @@ def restart_wireguard_interface(interface="wg0"):
     try:
         sanitized_interface = sanitize_interface_name(interface)
 
-        wg_quick_path = "/usr/local/bin/wg-quick" 
+        wg_quick_path = "wg-quick" 
         
         subprocess.run([wg_quick_path, "down", sanitized_interface], check=True)
         subprocess.run([wg_quick_path, "up", sanitized_interface], check=True)
@@ -1697,121 +1727,170 @@ def recover_from_backup(config_name: str):
         return []
 
 def load_peers_from_json(config_name: str):
+
     file_path = obtain_peers_file(config_name)
     with json_lock:
         try:
             with open(file_path, "r") as f:
-                return json.load(f)
+                peers = json.load(f)
+
+            fields_to_remove = ["blocked", "reset"]
+            fields_to_add = {
+                "last_received_bytes": 0,
+                "last_sent_bytes": 0,
+            }
+
+            updated = False
+            for peer in peers:
+                for field in fields_to_remove:
+                    if field in peer:
+                        del peer[field]
+                        updated = True
+
+                for field, default_value in fields_to_add.items():
+                    if field not in peer:
+                        peer[field] = default_value
+                        updated = True
+
+            if updated:
+                save_peers_to_json(config_name, peers)
+                print(f"Updated peers in {file_path} (removed fields and added missing fields).")
+
+            return peers
         except json.JSONDecodeError as e:
-            print(f"error in decoding JSON for {file_path}: {e}. Attempting recovery.")
+            print(f"Error decoding JSON for {file_path}: {e}. Attempting recovery.")
             return recover_from_backup(config_name)
         except FileNotFoundError:
-            return []  
+            return []
+
 
 
 def save_peers_to_json(config_name: str, peers):
     file_path = obtain_peers_file(config_name)
     try:
-        with open(file_path, "w") as f:
-            fcntl.flock(f, fcntl.LOCK_EX)
-            json.dump(peers, f, indent=4)
-            fcntl.flock(f, fcntl.LOCK_UN)  
+        with open(file_path + '.tmp', "w") as temp_file:
+            fcntl.flock(temp_file, fcntl.LOCK_EX)
+            json.dump(peers, temp_file, indent=4)
+            fcntl.flock(temp_file, fcntl.LOCK_UN)
+
+        shutil.move(file_path + '.tmp', file_path)
         print(f"Successfully saved peers to {file_path}.")
+        
     except Exception as e:
         print(f"Couldn't save peers to {file_path}: {e}")
 
 
+monitor_lock = Lock()  
+
 def monitor_traffic():
+    if not monitor_lock.acquire(blocking=False):
+        logging.info("monitor_traffic job is already running. Skipping this execution.")
+        return  
 
-    config_files = [f for f in os.listdir(WIREGUARD_CONFIG_DIR) if f.endswith(".conf")]
-    interfaces = [config.split(".")[0] for config in config_files]
+    try:
+        config_files = [f for f in os.listdir(WIREGUARD_CONFIG_DIR) if f.endswith(".conf")]
+        interfaces = [config.split(".")[0] for config in config_files]
 
-    def load_peers_with_lock(config_name: str):
-        file_path = obtain_peers_file(config_name)
-        try:
-            with open(file_path, "r") as f:
-                fcntl.flock(f, fcntl.LOCK_SH)  
-                peers_data = json.load(f)
-                fcntl.flock(f, fcntl.LOCK_UN) 
-            return peers_data
-        except FileNotFoundError:
-            return []  
-        except json.JSONDecodeError as e:
-            logging.error(f"Couldn't decode JSON for {file_path}: {e}")
-            return []
+        def load_peers_with_lock(config_name: str):
+            file_path = obtain_peers_file(config_name)
+            try:
+                with open(file_path, "r") as f:
+                    fcntl.flock(f, fcntl.LOCK_SH)
+                    peers_data = json.load(f)
+                    fcntl.flock(f, fcntl.LOCK_UN)
+                return peers_data
+            except FileNotFoundError:
+                return []
+            except json.JSONDecodeError as e:
+                logging.error(f"Couldn't decode JSON for {file_path}: {e}")
+                return []
 
-    def save_peers_with_lock(config_name: str, peers_data):
-        file_path = obtain_peers_file(config_name)
-        try:
-            with open(file_path, "w") as f:
-                fcntl.flock(f, fcntl.LOCK_EX) 
-                json.dump(peers_data, f, indent=4)
-                fcntl.flock(f, fcntl.LOCK_UN)  
-            logging.info(f"Successfully saved peers to {file_path}.")
-        except Exception as e:
-            logging.error(f"Couldn't save peers to {file_path}: {e}")
+        def save_peers_with_lock(config_name: str, peers_data):
+            file_path = obtain_peers_file(config_name)
+            try:
+                with open(file_path + '.tmp', "w") as temp_file:
+                    fcntl.flock(temp_file, fcntl.LOCK_EX)
+                    json.dump(peers_data, temp_file, indent=4)
+                    fcntl.flock(temp_file, fcntl.LOCK_UN)
+                
+                os.rename(file_path + '.tmp', file_path)
+                logging.info(f"Successfully saved peers to {file_path}.")
+            except Exception as e:
+                logging.error(f"Couldn't save peers to {file_path}: {e}")
 
-    for interface in interfaces:
-        try:
-            wg_output = subprocess.check_output(["wg", "show", interface, "transfer"], text=True)
+        for interface in interfaces:
+            try:
+                wg_output = subprocess.check_output(["wg", "show", interface, "transfer"], text=True)
 
-            peers = load_peers_with_lock(interface)
+                peers = load_peers_with_lock(interface)
 
-            for peer in peers:
-                if peer.get("config") != f"{interface}.conf":
-                    continue
+                for peer in peers:
+                    if peer.get("config") != f"{interface}.conf":
+                        continue
 
-                try:
-                    ip_address(peer["peer_ip"])
-                except ValueError:
-                    logging.warning(f"Wrong IP address for peer: {peer['peer_name']} - {peer['peer_ip']}")
-                    continue
+                    try:
+                        ip_address(peer["peer_ip"])  
+                    except ValueError:
+                        logging.warning(f"Wrong IP address for peer: {peer['peer_name']} - {peer['peer_ip']}")
+                        continue
 
-                peer_ip = peer["peer_ip"]
-                limit_bytes = convert_to_bytes(peer["limit"])
+                    peer_ip = peer["peer_ip"]
+                    limit_bytes = convert_to_bytes(peer["limit"]) 
 
-                for line in wg_output.splitlines():
-                    columns = line.split("\t")
-                    if len(columns) >= 3 and columns[0] == peer["public_key"]:
-                        try:
-                            received_bytes = int(columns[1])
-                            sent_bytes = int(columns[2])
-                        except ValueError:
-                            logging.error(f"Wrong transfer stats for peer {peer['peer_name']} in wg_output.")
-                            continue
+                    for line in wg_output.splitlines():
+                        columns = line.split("\t")
+                        if len(columns) >= 3 and columns[0] == peer["public_key"]:
+                            try:
+                                received_bytes = int(columns[1])
+                                sent_bytes = int(columns[2])
+                            except ValueError:
+                                logging.error(f"Wrong transfer stats for peer {peer['peer_name']} in wg_output.")
+                                continue
 
-                        total_bytes = received_bytes + sent_bytes
+                            last_received = peer.get("last_received_bytes", 0)
+                            last_sent = peer.get("last_sent_bytes", 0)
 
-                        peer["used"] = total_bytes
-                        peer["remaining"] = max(0, limit_bytes - total_bytes)
-
-                        if total_bytes >= limit_bytes and not peer.get("monitor_blocked", False):
-                            logging.info(f"Blocking {peer['peer_name']} ({peer_ip}) - Exceeded Limit")
-                            if add_blackhole_route(peer_ip): 
-                                peer["monitor_blocked"] = True
-                                logging.warning(f"Peer '{peer['peer_name']}' has been blocked due to usage limit.")
+                            if received_bytes < last_received or sent_bytes < last_sent:
+                                logging.info(f"Detected reset for peer {peer['peer_name']}.")
+                                additional_bytes = received_bytes + sent_bytes
                             else:
-                                logging.error(f"Couldn't add blackhole route for peer '{peer['peer_name']}'.")
+                                additional_bytes = (received_bytes - last_received) + (sent_bytes - last_sent)
 
-            save_peers_with_lock(interface, peers)
+                            peer["used"] += max(0, additional_bytes)
+                            peer["remaining"] = max(0, limit_bytes - peer["used"])
+                            peer["last_received_bytes"] = received_bytes
+                            peer["last_sent_bytes"] = sent_bytes
 
-        except subprocess.CalledProcessError as e:
-            if "No such device" in str(e):
-                logging.info(f"No such device for interface {interface}.")
-                continue
-            else:
-                logging.warning(f"Non-critical error for interface {interface}: {e}")
-        except Exception as e:
-            logging.error(f"Unexpected error for interface {interface}: {e}")
+                            if peer["used"] >= limit_bytes and not peer.get("monitor_blocked", False):
+                                logging.info(f"Blocking {peer['peer_name']} ({peer_ip}) - Exceeded Limit")
+                                if add_blackhole_route(peer_ip):  
+                                    peer["monitor_blocked"] = True
+                                    logging.warning(f"Peer '{peer['peer_name']}' has been blocked due to usage limit.")
+                                else:
+                                    logging.error(f"Couldn't add blackhole route for peer '{peer['peer_name']}'.")
+
+                save_peers_with_lock(interface, peers)
+
+            except subprocess.CalledProcessError as e:
+                if "No such device" in str(e):
+                    logging.info(f"No such device for interface {interface}.")
+                    continue
+                else:
+                    logging.warning(f"Non-critical error for interface {interface}: {e}")
+            except Exception as e:
+                logging.error(f"Unexpected error for interface {interface}: {e}")
+
+    finally:
+        monitor_lock.release()
+
 
 
 @app.route("/api/reset-traffic", methods=["POST"])
 def reset_traffic():
-  
     try:
         data = request.json
         peer_name = data.get("peerName")
-        config_name = data.get("config", "wg0.conf") 
+        config_name = data.get("config", "wg0.conf")
 
         if not peer_name:
             return jsonify(error="Peer name is required."), 400
@@ -1830,20 +1909,17 @@ def reset_traffic():
 
         peer["used"] = 0
         peer["remaining"] = convert_to_bytes(peer["limit"])
-        peer["reset"] = False 
-        if peer.get("blocked"): 
-            peer["blocked"] = False
-            remove_blackhole_route(peer_ip) 
-
         save_peers_to_json(config_name, peers)
 
         return jsonify(
             success=True,
-            message = f"The traffic statistics for the user '{peer_name}' in the file {config_name} have been reset."
+            message=f"The traffic statistics for the user '{peer_name}' in the file {config_name} have been reset."
         )
     except Exception as e:
-        print(f"error in resetting traffic: {e}")
-        return jsonify(error=f"error in resetting traffic: {e}"), 500
+        print(f"Error in resetting traffic: {e}")
+        return jsonify(error=f"Error in resetting traffic: {e}"), 500
+
+
 
 
 @app.route("/api/reset-expiry", methods=["POST"])
@@ -1897,7 +1973,7 @@ def sanitize_ip(ip_address: str):
 def add_blackhole_route(peer_ip):
     try:
         sanitized_ip = sanitize_ip(peer_ip)
-        ip_path = "/sbin/ip"
+        ip_path = "ip"
 
         check_route = subprocess.run(
             [ip_path, "route", "show", f"{sanitized_ip}/32"],
@@ -1906,9 +1982,13 @@ def add_blackhole_route(peer_ip):
             text=True
         )
 
-        if check_route.returncode == 0 and f"blackhole {sanitized_ip}" in check_route.stdout:
-            print(f"Blackhole route for {sanitized_ip} already exists.")
-            return True  
+        if check_route.returncode == 0:
+            if f"blackhole {sanitized_ip}" in check_route.stdout:
+                print(f"Blackhole route already exists for {sanitized_ip}. Skipping.")
+                return True  
+
+            print(f"Existing non-blackhole route found for {sanitized_ip}. Removing it.")
+            subprocess.run([ip_path, "route", "del", f"{sanitized_ip}/32"], check=True)
 
         subprocess.run([ip_path, "route", "add", "blackhole", f"{sanitized_ip}/32"], check=True)
         print(f"Successfully added blackhole route for {sanitized_ip}")
@@ -1921,10 +2001,12 @@ def add_blackhole_route(peer_ip):
         print(f"Invalid IP address provided: {e}")
         return False
 
+
+
 def remove_blackhole_route(peer_ip):
     try:
         sanitized_ip = sanitize_ip(peer_ip)
-        ip_path = "/sbin/ip"
+        ip_path = "ip"
 
         check_route = subprocess.run(
             [ip_path, "route", "show", f"{sanitized_ip}/32"],
@@ -1932,6 +2014,10 @@ def remove_blackhole_route(peer_ip):
             stderr=subprocess.PIPE,
             text=True
         )
+
+        if check_route.returncode == 0 and f"dev" in check_route.stdout:
+            print(f"Route exists for {sanitized_ip}, but it is not a blackhole route. Not removing.")
+            return False
 
         if check_route.returncode != 0 or f"blackhole {sanitized_ip}" not in check_route.stdout:
             print(f"No blackhole route found for {sanitized_ip}. Nothing to remove.")
@@ -2132,7 +2218,7 @@ def block_peer():
     try:
         data = request.json
         peer_name = data.get("peerName")
-        config_name = data.get("config", "wg0.conf") 
+        config_name = data.get("config", "wg0.conf")
 
         if not peer_name:
             return jsonify(error="Peer name is required."), 400
@@ -2143,7 +2229,7 @@ def block_peer():
         if not peer:
             return jsonify(error=f"Peer '{peer_name}' not found in {config_name}."), 404
 
-        if peer["blocked"]:
+        if peer["monitor_blocked"] and peer["expiry_blocked"]:
             return jsonify(
                 success=True,
                 message=f"Peer {peer_name} in {config_name} is already blocked."
@@ -2154,7 +2240,8 @@ def block_peer():
         if not success:
             return jsonify(error=f"Couldn't block peer {peer_name} in {config_name}."), 500
 
-        peer["blocked"] = True
+        peer["monitor_blocked"] = True
+        peer["expiry_blocked"] = True
         save_peers_to_json(config_name, peers)
 
         return jsonify(
@@ -2163,16 +2250,15 @@ def block_peer():
             message=f"Peer {peer_name} in {config_name} has been blocked."
         )
     except Exception as e:
-        print(f"error in blocking peer: {e}")
+        print(f"Error in blocking peer: {e}")
         return jsonify(error=str(e)), 500
-
 
 @app.route("/api/unblock-peer", methods=["POST"])
 def unblock_peer():
     try:
         data = request.json
         peer_name = data.get("peerName")
-        config_name = data.get("config", "wg0.conf") 
+        config_name = data.get("config", "wg0.conf")
 
         if not peer_name:
             return jsonify(error="Peer name is required."), 400
@@ -2183,7 +2269,7 @@ def unblock_peer():
         if not peer:
             return jsonify(error=f"Peer '{peer_name}' not found in {config_name}."), 404
 
-        if not peer["blocked"]:
+        if not peer["monitor_blocked"] and not peer["expiry_blocked"]:
             return jsonify(
                 success=True,
                 message=f"Peer {peer_name} in {config_name} is already unblocked."
@@ -2194,7 +2280,8 @@ def unblock_peer():
         if not success:
             return jsonify(error=f"Couldn't unblock peer {peer_name} in {config_name}."), 500
 
-        peer["blocked"] = False
+        peer["monitor_blocked"] = False
+        peer["expiry_blocked"] = False
         save_peers_to_json(config_name, peers)
 
         return jsonify(
@@ -2203,8 +2290,9 @@ def unblock_peer():
             message=f"Peer {peer_name} in {config_name} has been unblocked."
         )
     except Exception as e:
-        print(f"error in unblocking peer: {e}")
+        print(f"Error in unblocking peer: {e}")
         return jsonify(error=str(e)), 500
+
     
 
 def derive_public_key(private_key: str) -> str:
@@ -2374,14 +2462,22 @@ def export_peer():
         with open(temp_file.name, "w") as file:
             file.write(peer_config)
 
-        return send_file(
+        response = send_file(
             temp_file.name,
             as_attachment=True,
-            download_name=f"{peer_name}.conf",
-            mimetype="text/plain",
+            download_name=f"{peer_name}.conf",  
+            mimetype="application/octet-stream", 
         )
+
+        
+        response.cache_control.no_cache = True
+        response.cache_control.no_store = True
+        response.cache_control.must_revalidate = True
+
+        return response
     except Exception as e:
         return jsonify(error=f"error in creating config file: {str(e)}"), 500
+
 
 @app.route("/api/qr-code", methods=["GET"])
 def generate_qr_code():
@@ -2611,19 +2707,14 @@ def update_custom_ip():
     custom_ip = data.get("custom_ip")
 
     if not custom_ip:
-        return jsonify(error="Custom IP is required"), 400
-
-    try:
-        import ipaddress
-        ipaddress.ip_address(custom_ip)
-    except ValueError:
-        return jsonify(error="Wrong IP address"), 400
+        return jsonify(error="Custom IP or Subdomain is required"), 400
 
     try:
         set_custom_ip(custom_ip)
-        return jsonify(message="Custom IP updated successfully")
+        return jsonify(message="Custom IP/Subdomain updated successfully")
     except Exception as e:
-        return jsonify(error=f"error in updating custom IP: {str(e)}"), 500
+        return jsonify(error=f"error in updating custom IP/Subdomain: {str(e)}"), 500
+
 
 def read_file_content(file_name):
     try:
@@ -2786,7 +2877,7 @@ def wg_config_details():
         try:
             sanitized_interface_name = sanitize_interface_name(interface_name)
 
-            ip_path = "/sbin/ip"  
+            ip_path = "ip"  
 
             command = [ip_path, "link", "show", sanitized_interface_name] 
             result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -2821,7 +2912,7 @@ def toggle_config():
 
     active = request.args.get("active", "false").lower() == "true"
 
-    wg_quick_path = "/usr/sbin/wg-quick"  
+    wg_quick_path = "wg-quick"  
 
     try:
         if active:
@@ -2839,7 +2930,7 @@ def toggle_config():
                 text=True,
             )
 
-        ip_path = "/sbin/ip" 
+        ip_path = "ip" 
         interface_state = subprocess.run(
             [ip_path, "link", "show", interface_name],
             capture_output=True,
@@ -2884,23 +2975,23 @@ def toggle_peer():
         print(f"Current state of peer '{peer_name}': monitor_blocked={peer.get('monitor_blocked')}, expiry_blocked={peer.get('expiry_blocked')}")
 
         peer["monitor_blocked"] = blocked
-        peer["expiry_blocked"] = blocked  
-        peer["blocked"] = blocked  
+        peer["expiry_blocked"] = blocked
 
-        if not blocked:
+        if not blocked:  
             print(f"Enabling peer '{peer_name}'. Resetting values.")
-            
-            peer["remaining"] = convert_to_bytes(peer.get("limit", "0MiB"))  
-            peer["remaining_time"] = calculate_expiry_duration(peer.get("expiry_time", {}))  
-            peer["used"] = 0  
-            peer["reset"] = False  
+
+            peer["remaining"] = convert_to_bytes(peer.get("limit", "0MiB"))
+            peer["remaining_time"] = calculate_expiry_duration(peer.get("expiry_time", {}))
+            peer["used"] = 0
+            peer["last_received_bytes"] = 0  
+            peer["last_sent_bytes"] = 0   
 
             print(f"Unblocking IP: {peer['peer_ip']} for {config_name}")
             success = remove_blackhole_route(peer["peer_ip"])
             if not success:
                 print(f"Failed to remove blackhole route for {peer['peer_ip']}")
                 return jsonify(error=f"Couldn't unblock peer {peer_name} in {config_name}."), 500
-        else:
+        else:  
             print(f"Disabling peer '{peer_name}'. Blocking IP.")
             success = add_blackhole_route(peer["peer_ip"])
             if not success:
@@ -2920,6 +3011,7 @@ def toggle_peer():
 
 
 
+
 @app.route("/api/available-ips", methods=["GET"])
 def track_available_ips():
     config_file = request.args.get("config", "wg0.conf")
@@ -2932,7 +3024,7 @@ def track_available_ips():
 @app.route("/api/generate-keys", methods=["GET"])
 def generate_keys():
     try:
-        wg_path = "/usr/bin/wg" 
+        wg_path = "wg" 
 
         result_private = subprocess.run(
             [wg_path, "genkey"], 
@@ -2995,9 +3087,9 @@ def reload_blocked_peers():
                     else:
                         logging.info(f"Peer {peer['peer_name']} does not meet blocking criteria.")
             except Exception as e:
-                logging.error(f"Error in processing peers for {config_file}: {e}")
+                logging.error(f"error in processing peers for {config_file}: {e}")
     except Exception as e:
-        logging.error(f"Error in reloading blocked peers: {e}")
+        logging.error(f"error in reloading blocked peers: {e}")
 
 
 
@@ -3066,7 +3158,7 @@ def warp_status():
     wgcf_status = "Inactive"
 
     try:
-        command = ["/usr/sbin/ip", "link", "show"]
+        command = ["ip", "link", "show"]
         interfaces = run_command(command).splitlines()
 
         if any("wgcf" in line for line in interfaces):
@@ -3085,7 +3177,7 @@ def xray_status():
     xray_status = "Inactive"
 
     try:
-        command = ["sudo", "/bin/systemctl", "is-active", "xray"]
+        command = ["sudo", "systemctl", "is-active", "xray"]
         result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
         if result.returncode == 0:
@@ -3104,7 +3196,7 @@ def reset_warp():
     try:
         messages = []
 
-        command = ["/usr/sbin/ip", "link", "show"]
+        command = ["ip", "link", "show"]
         interfaces = run_command(command).splitlines()
 
         if any("wgcf" in line for line in interfaces):
@@ -3609,6 +3701,8 @@ def create_peer():
             "persistent_keepalive": persistent_keepalive,
             "mtu": mtu,
             "config": config_file,
+            "last_received_bytes": 0, 
+            "last_sent_bytes": 0,  
         }
 
         peers.append(peer)
@@ -3616,7 +3710,7 @@ def create_peer():
 
         interface = sanitize_interface_name(config_file.split(".")[0])
 
-        wg_path = "/usr/bin/wg"  
+        wg_path = "wg"  
 
         subprocess.run(
             [wg_path, "set", interface, "peer", client_public_key, "allowed-ips", f"{sanitized_peer_ip}/32"],
@@ -3642,6 +3736,7 @@ def create_peer():
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
 
+
 def sanitize_public_key(public_key: str):
     if re.match(r"^[A-Za-z0-9+/=]+$", public_key):
         return public_key
@@ -3653,13 +3748,13 @@ def delete_peer():
     try:
         data = request.json
         peer_name = data.get("peerName")
-        config_file = data.get("configFile", "wg0.conf")  
+        config_file = data.get("configFile") 
 
         if not peer_name:
             return jsonify(error="Peer name is required."), 400
 
-        if not re.match(r"^[a-zA-Z0-9_-]+\.conf$", config_file):
-            return jsonify(error="Wrong config file name."), 400
+        if not config_file or not re.match(r"^[a-zA-Z0-9_-]+\.conf$", config_file):
+            return jsonify(error="Valid config file name is required."), 400
 
         peers = load_peers_from_json(config_file)
 
@@ -3671,14 +3766,20 @@ def delete_peer():
         public_key = sanitize_public_key(peer["public_key"])
 
         try:
-            wg_path = "/usr/bin/wg"  
-            result = subprocess.run([wg_path, "set", interface, "peer", public_key, "remove"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            wg_path = "wg"
+            result = subprocess.run(
+                [wg_path, "set", interface, "peer", public_key, "remove"],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
             if result.returncode != 0:
-                logging.error(f"error in removing peer from Wireguard: {result.stderr}")
-                return jsonify(error=f"Couldn't remove peer from Wireguard: {result.stderr}"), 500
+                logging.error(f"error in removing peer from WireGuard: {result.stderr}")
+                return jsonify(error=f"Couldn't remove peer from WireGuard: {result.stderr}"), 500
         except subprocess.CalledProcessError as e:
-            logging.error(f"error in removing peer from Wireguard: {e.stderr}")
-            return jsonify(error=f"Couldn't remove peer from Wireguard: {e.stderr}"), 500
+            logging.error(f"error in removing peer from WireGuard: {e.stderr}")
+            return jsonify(error=f"Couldn't remove peer from WireGuard: {e.stderr}"), 500
 
         peer_ip = peer.get("peer_ip")
         if peer_ip and not remove_blackhole_route(peer_ip):
@@ -3706,10 +3807,10 @@ def delete_peer():
             with open(config_path, "w") as conf_file:
                 conf_file.writelines(new_lines)
 
-            logging.info(f"Updated Wireguard config file '{config_path}'.")
+            logging.info(f"Updated WireGuard config file '{config_path}'.")
         except Exception as e:
-            logging.error(f"error in updating Wireguard config file '{config_path}': {e}")
-            return jsonify(error="Couldn't update Wireguard config file."), 500
+            logging.error(f"error in updating WireGuard config file '{config_path}': {e}")
+            return jsonify(error="Couldn't update WireGuard config file."), 500
 
         peers = [p for p in peers if p["peer_name"] != peer_name]
         save_peers_to_json(config_file, peers)
@@ -3718,6 +3819,7 @@ def delete_peer():
     except Exception as e:
         logging.error(f"error in deleting peer: {e}")
         return jsonify(error=f"error in deleting peer: {e}"), 500
+
 
 
 @app.route("/api/delete-all-configs", methods=["POST"])
@@ -3797,7 +3899,7 @@ def reset_peer_traffic(interface, public_key, peer_ip=None):
         interface = sanitize_interface_name(interface)
         public_key = sanitize_public_key(public_key)
 
-        wg_path = "/usr/bin/wg"  
+        wg_path = "wg"  
 
         subprocess.run([wg_path, "set", interface, "peer", public_key, "remove"], check=True)
         print(f"Peer {public_key} removed from {interface}, resetting counters.")
@@ -3829,7 +3931,7 @@ def parse_traffic(peer_ip, public_key):
         if not isinstance(peer_ip, str) or not isinstance(public_key, str):
             raise ValueError("Both peer_ip and public_key must be strings.")
 
-        wg_path = "/usr/bin/wg"  
+        wg_path = "wg"  
 
         result = subprocess.run(
             [wg_path, "show", "all", "dump"], 
@@ -4051,7 +4153,10 @@ def edit_peer():
     try:
         data = request.json
         peer_name = data.get("peerName")
-        config_file = data.get("configFile", "wg0.conf")  
+        config_file = data.get("configFile")
+
+        if not config_file or not os.path.isfile(f"{WIREGUARD_CONFIG_DIR}/{config_file}"):
+            return jsonify({"error": f"Invalid or missing configuration file: {config_file}"}), 400
 
         if not peer_name or not re.match(r'^[a-zA-Z0-9_]+$', peer_name):
             return jsonify({"error": "Wrong peer name. Only letters, numbers, and underscores are allowed."}), 400
@@ -4083,7 +4188,7 @@ def edit_peer():
 
         peer = next((p for p in peers if p["peer_name"] == peer_name), None)
         if not peer:
-            return jsonify({"error": "Peer not found"}), 404
+            return jsonify({"error": f"Peer {peer_name} not found in {config_file}"}), 404
 
         if new_limit:
             peer["limit"] = new_limit
@@ -4110,8 +4215,9 @@ def edit_peer():
         save_peers_to_json(config_file, peers)
         return jsonify({"message": "Peer updated successfully", "peer": peer})
     except Exception as e:
-        print(f"error in editing peer: {e}")
+        print(f"Error in editing peer: {e}")
         return jsonify({"error": f"Couldn't update peer: {str(e)}"}), 500
+
 
 
 @app.route("/api/wireguard-details", methods=["GET"])
@@ -4121,7 +4227,7 @@ def wireguard_details():
     try:
         interface_name = sanitize_interface_name(config_file.split(".")[0])
 
-        ip_path = "/sbin/ip" 
+        ip_path = "ip" 
 
         result = subprocess.run(
             [ip_path, "link", "show", interface_name],
@@ -4179,7 +4285,6 @@ def obt_interfaces():
 decrement_lock = Lock()
 
 def decrease_remaining_time():
-
     if not decrement_lock.acquire(blocking=False):
         logging.info("Skipping expiry timer as another instance is already running.")
         return
@@ -4209,10 +4314,12 @@ def decrease_remaining_time():
 
             def save_peers_with_lock(peers_data):
                 try:
-                    with open(peers_file, "w") as f:
-                        fcntl.flock(f, fcntl.LOCK_EX) 
-                        json.dump(peers_data, f, indent=4)
-                        fcntl.flock(f, fcntl.LOCK_UN) 
+                    with open(peers_file + '.tmp', "w") as temp_file:
+                        fcntl.flock(temp_file, fcntl.LOCK_EX)  
+                        json.dump(peers_data, temp_file, indent=4)
+                        fcntl.flock(temp_file, fcntl.LOCK_UN)  
+
+                    os.rename(peers_file + '.tmp', peers_file)
                     print(f"INFO: Successfully saved {peers_file} with lock.")
                 except Exception as e:
                     print(f"ERROR: Couldn't save peers to {peers_file}: {e}")
@@ -4253,8 +4360,9 @@ def decrease_remaining_time():
         print(f"ERROR: An error occurred in expiry timer: {e}")
 
     finally:
-        decrement_lock.release()
+        decrement_lock.release()  
         print("INFO: Finished expiry timer job.")
+
 
 
 def track_peer_usage(peer_ip):
@@ -4304,6 +4412,23 @@ def clean_invalid_jobs(scheduler):
             logging.warning(f"Job {job_id} not found in the scheduler.")
 
 
+GEO_PATH = "/usr/local/etc/xray/config.json"
+
+@app.route('/api/get-active-geosites', methods=['GET'])
+def get_active_geosites():
+    try:
+        with open(GEO_PATH, 'r') as config_file:
+            config_data = json.load(config_file)
+        
+        active_geosites = []
+        for rule in config_data.get('routing', {}).get('rules', []):
+            if rule.get('type') == 'field' and rule.get('outboundTag') == 'warp':
+                active_geosites.extend(rule.get('domain', []))
+        
+        return jsonify({"active_geosites": active_geosites})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
 @app.route("/api/track-usage", methods=["POST"])
 def handle_track_usage():
     data = request.get_json()
@@ -4347,7 +4472,7 @@ if __name__ == "__main__":
     cert_path = config["flask"].get("cert_path")
     key_path = config["flask"].get("key_path")
     debug_mode = config["flask"].get("debug", False)
-    auto_backup_int = config["wireguard"].get("auto_backup_int", 20)
+    auto_backup_int = config["wireguard"].get("auto_backup_int", 30)
 
     if use_tls and cert_path:
         try:
@@ -4408,7 +4533,7 @@ if __name__ == "__main__":
                 scheduler.add_job(
                     monitor_traffic,
                     "interval",
-                    seconds=30,
+                    seconds=23,
                     id="monitor_traffic",
                     max_instances=1,
                     replace_existing=True
@@ -4429,7 +4554,7 @@ if __name__ == "__main__":
                 logging.info("Adding system metrics job.")
                 scheduler.add_job(
                     system_metrics_job,
-                    trigger=IntervalTrigger(seconds=10),
+                    trigger=IntervalTrigger(seconds=9),
                     id="system_metrics",
                     max_instances=1,
                     replace_existing=True,
