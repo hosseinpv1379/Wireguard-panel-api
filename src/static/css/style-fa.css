@@ -646,7 +646,7 @@ button:hover {
     margin-top: 10px;
     flex-direction: row;
     align-items: center;
-    max-width: 100px;
+    max-width: 50px;
     margin-right: 550px;
 }
 
