@@ -1471,8 +1471,8 @@ async def interface_select(update: Update, context: CallbackContext):
         f"⚡ **Status:** {'🟢 Active' if not matched_peer['expiry_blocked'] else '🔴 Blocked'}\n"
     )
     keyboard = [
-        [InlineKeyboardButton("📄 Download Config", callback_data=f"download_{matched_peer['peer_name']}")],
-        [InlineKeyboardButton("📷 Generate QR Code", callback_data=f"qr_{matched_peer['peer_name']}")],
+        [InlineKeyboardButton("📄 Download Config", callback_data=f"download_create_{matched_peer['peer_name']}")],
+        [InlineKeyboardButton("📷 Generate QR Code", callback_data=f"qr_create_{matched_peer['peer_name']}")],
         [InlineKeyboardButton("🔙 Back to Interface Selection", callback_data="download_qr_menu")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -1489,16 +1489,16 @@ async def peer_decision(update: Update, context: CallbackContext):
     context.user_data["peer_name"] = peer_name  
 
     if action == "download":
-        await download_peerconfig_general(update, context)
+        await download_peerconfig_create(update, context)
     elif action == "qr":
-        await generate_peerqr_general(update, context)
+        await generate_peerqr_create(update, context)
 
 
 async def download_peerconfig_general(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
 
-    peer_name = query.data.replace("download_", "")
+    peer_name = query.data.replace("download_general_", "")
     config_file = context.user_data.get("selected_config")
 
     if not config_file or not config_file.endswith(".conf"):
@@ -1526,7 +1526,7 @@ async def download_peerconfig_general(update: Update, context: CallbackContext):
                 keyboard = [
                     [
                         InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu"),
-                        InlineKeyboardButton("📋 Peer List", callback_data="peer_list"),
+                        InlineKeyboardButton("📋 Peer List", callback_data="peers_menu"),
                     ]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
@@ -1558,7 +1558,7 @@ async def generate_peerqr_general(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
 
-    peer_name = query.data.replace("qr_", "")
+    peer_name = query.data.replace("qr_general_", "")
     config_file = context.user_data.get("selected_config")
 
     if not config_file or not config_file.endswith(".conf"):
@@ -1588,7 +1588,7 @@ async def generate_peerqr_general(update: Update, context: CallbackContext):
     keyboard = [
         [
             InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu"),
-            InlineKeyboardButton("📋 Peer List", callback_data="peer_list"),
+            InlineKeyboardButton("📋 Peer List", callback_data="peers_menu"),
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -1724,21 +1724,21 @@ async def download_peerconfig_create(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
 
-    peer_name = query.data.replace("download_", "")
-    config_file = context.user_data.get("selected_config")
+    peer_name = query.data.replace("download_create_", "").strip()
+    selected_interface = context.user_data.get("selected_interface", "wg0")  
+    config_file = f"{selected_interface}.conf"
 
     if not config_file or not config_file.endswith(".conf"):
-        await query.message.reply_text("❌ Wireguard config file not found. restart please.")
+        await query.message.reply_text("❌ WireGuard configuration file not found. Please restart the process.")
         return
 
-    expiry_days = context.user_data.get("expiry_days", 1)  
+    expiry_days = context.user_data.get("expiry_days", 1)
     data_limit = context.user_data.get("data_limit", "N/A")
 
     tehran_tz = timezone("Asia/Tehran")
     now_tehran = datetime.now(tehran_tz).date()
 
     current_jalali_date = jdate.fromgregorian(date=now_tehran)
-
     expiry_date_jalali = current_jalali_date + timedelta(days=expiry_days)
 
     expiry_date_jalali_str = f"{expiry_date_jalali.year}/{expiry_date_jalali.month:02}/{expiry_date_jalali.day:02}"
@@ -1748,32 +1748,48 @@ async def download_peerconfig_create(update: Update, context: CallbackContext):
         async with session.get(url, headers={"Authorization": f"Bearer {API_KEY}"}) as response:
             if response.status == 200:
                 peer_config = await response.text()
+
+                keyboard = [
+                    [
+                        InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu"),
+                        InlineKeyboardButton("📋 Peer List", callback_data="peers_menu"),
+                    ]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+
+                caption = (
+                    f"Configuration file for `{peer_name}`\n\n"
+                    f"👤 *Username:* `{peer_name}`\n"
+                    f"⏳ *Expiry Date:* `{expiry_days} day(s)`\n"
+                    f"📅 *Expiry Date (Solar):* `{expiry_date_jalali_str}`\n"
+                    f"📏 *Data Limit:* `{data_limit}`\n\n"
+                    f"📄 *Configuration File Content:*\n"
+                    f"```\n{peer_config}\n```"
+                )
+
                 await context.bot.send_document(
                     chat_id=query.message.chat_id,
                     document=BytesIO(peer_config.encode("utf-8")),
                     filename=f"{peer_name}.conf",
-                    caption=(
-                        f"Configuration file for `{peer_name}`\n"
-                        f"👤 *Username:* `{peer_name}`\n"
-                        f"⏳ *Expiry Date:* `{expiry_days} day(s)`\n"
-                        f"📅 *Expiry Date (Solar):* `{expiry_date_jalali_str}`\n"
-                        f"📏 *Data Limit:* `{data_limit}`"
-                    ),
-                    parse_mode="Markdown"
+                    caption=caption,
+                    parse_mode="Markdown",
+                    reply_markup=reply_markup
                 )
             else:
                 error = await response.json()
-                await query.message.reply_text(f"❌ Error: {error.get('error', 'retrieving the config file failed')}")
+                await query.message.reply_text(f"❌ Error: {error.get('error', 'Unable to fetch the configuration file.')}")
 
-async def generate_peerqr_create(update, context):
+async def generate_peerqr_create(update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
 
-    peer_name = query.data.replace("qr_", "")
-    config_file = context.user_data.get("selected_config")
+    peer_name = query.data.replace("qr_create_", "").strip()
+
+    selected_interface = context.user_data.get("selected_interface", "wg0") 
+    config_file = f"{selected_interface}.conf"
 
     if not config_file or not config_file.endswith(".conf"):
-        await query.message.reply_text("❌ Wireguard config file not found. restart please.")
+        await query.message.reply_text("❌ WireGuard configuration file not found. Please restart the process.")
         return
 
     qr_url = f"{API_BASE_URL}/api/download-peer-qr?peerName={peer_name}&config={config_file}"
@@ -1785,7 +1801,7 @@ async def generate_peerqr_create(update, context):
                 qr_image = await qr_response.read()
             else:
                 error = await qr_response.json()
-                await query.message.reply_text(f"❌ error fetching QR Code: {error.get('error', 'Unknown')}")
+                await query.message.reply_text(f"❌ Error fetching QR Code: {error.get('error', 'Unknown error')}")
                 return
 
         async with session.get(config_url, headers={"Authorization": f"Bearer {API_KEY}"}) as config_response:
@@ -1793,8 +1809,16 @@ async def generate_peerqr_create(update, context):
                 peer_config = await config_response.text()
             else:
                 error = await config_response.json()
-                await query.message.reply_text(f"❌ error fetching configuration: {error.get('error', 'Unknown')}")
+                await query.message.reply_text(f"❌ Error fetching configuration: {error.get('error', 'Unknown error')}")
                 return
+
+    keyboard = [
+        [
+            InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu"),
+            InlineKeyboardButton("📋 Peer List", callback_data="peers_menu"),
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
 
     await context.bot.send_photo(
         chat_id=query.message.chat_id,
@@ -1804,8 +1828,10 @@ async def generate_peerqr_create(update, context):
             f"To copy the configuration, use the text below:\n"
             f"```\n{peer_config}\n```"
         ),
-        parse_mode="Markdown"
+        parse_mode="Markdown",
+        reply_markup=reply_markup
     )
+
 
 async def init_peer_create(update: Update, context: CallbackContext):
     chat_id = update.effective_chat.id
@@ -2053,8 +2079,8 @@ async def confirm_use(update: Update, context: CallbackContext):
 
     keyboard = [
         [
-            InlineKeyboardButton("📂 Download Configuration", callback_data=f"download_{payload['peerName']}"),
-            InlineKeyboardButton("📷 Get QR Code", callback_data=f"qr_{payload['peerName']}")
+            InlineKeyboardButton("📂 Download Configuration", callback_data=f"download_general_{payload['peerName']}"),
+            InlineKeyboardButton("📷 Get QR Code", callback_data=f"qr_general_{payload['peerName']}")
         ],
         [
             InlineKeyboardButton("🔙 Back to Users Menu", callback_data="peers_menu"),
@@ -2833,8 +2859,8 @@ def main():
         INPUT_KEEPALIVE: [MessageHandler(filters.TEXT & ~filters.COMMAND, write_keepalive)],  
         CONFIRM_USAGE: [CallbackQueryHandler(confirm_use, pattern="confirm_usage_.*")],
         ConversationHandler.END: [
-            CallbackQueryHandler(download_peerconfig_create, pattern="download_.*"),
-            CallbackQueryHandler(generate_peerqr_create, pattern="qr_.*")
+            CallbackQueryHandler(download_peerconfig_general, pattern="download_general_.*"),
+            CallbackQueryHandler(generate_peerqr_general, pattern="qr_general_.*")
         ]
     },
     fallbacks=[],
@@ -2969,8 +2995,10 @@ def main():
     application.add_handler(peer_edit_stuff)
     application.add_handler(delete_peer_stuff)
     application.add_handler(reset_peer_stuff)
-    application.add_handler(CallbackQueryHandler(download_peerconfig_general, pattern="^download_.*$"))
-    application.add_handler(CallbackQueryHandler(generate_peerqr_general, pattern="^qr_.*$"))
+    application.add_handler(CallbackQueryHandler(download_peerconfig_create, pattern="^download_create_.*$"))
+    application.add_handler(CallbackQueryHandler(download_peerconfig_general, pattern="^download_general_.*$"))
+    application.add_handler(CallbackQueryHandler(generate_peerqr_create, pattern="^qr_create_.*$"))
+    application.add_handler(CallbackQueryHandler(generate_peerqr_general, pattern="^qr_general_.*$"))
     job_queue = application.job_queue
     job_queue.run_once(monitor_health, 1)
     register_notification(application)
