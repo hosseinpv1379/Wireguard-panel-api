@@ -1585,7 +1585,7 @@ def system_metrics_job():
             "uptime": uptime
         }
 
-        cache.set("metrics", metrics, timeout=10)
+        cache.set("metrics", metrics, timeout=9)
     except Exception as e:
         print(f"error in collecting metrics: {e}")
 
@@ -4412,6 +4412,23 @@ def clean_invalid_jobs(scheduler):
             logging.warning(f"Job {job_id} not found in the scheduler.")
 
 
+GEO_PATH = "/usr/local/etc/xray/config.json"
+
+@app.route('/api/get-active-geosites', methods=['GET'])
+def get_active_geosites():
+    try:
+        with open(GEO_PATH, 'r') as config_file:
+            config_data = json.load(config_file)
+        
+        active_geosites = []
+        for rule in config_data.get('routing', {}).get('rules', []):
+            if rule.get('type') == 'field' and rule.get('outboundTag') == 'warp':
+                active_geosites.extend(rule.get('domain', []))
+        
+        return jsonify({"active_geosites": active_geosites})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
 @app.route("/api/track-usage", methods=["POST"])
 def handle_track_usage():
     data = request.get_json()
@@ -4455,7 +4472,7 @@ if __name__ == "__main__":
     cert_path = config["flask"].get("cert_path")
     key_path = config["flask"].get("key_path")
     debug_mode = config["flask"].get("debug", False)
-    auto_backup_int = config["wireguard"].get("auto_backup_int", 20)
+    auto_backup_int = config["wireguard"].get("auto_backup_int", 30)
 
     if use_tls and cert_path:
         try:
@@ -4537,7 +4554,7 @@ if __name__ == "__main__":
                 logging.info("Adding system metrics job.")
                 scheduler.add_job(
                     system_metrics_job,
-                    trigger=IntervalTrigger(seconds=10),
+                    trigger=IntervalTrigger(seconds=9),
                     id="system_metrics",
                     max_instances=1,
                     replace_existing=True,
