@@ -1768,105 +1768,120 @@ def load_peers_from_json(config_name: str):
 def save_peers_to_json(config_name: str, peers):
     file_path = obtain_peers_file(config_name)
     try:
-        with open(file_path, "w") as f:
-            fcntl.flock(f, fcntl.LOCK_EX)
-            json.dump(peers, f, indent=4)
-            fcntl.flock(f, fcntl.LOCK_UN)  
+        with open(file_path + '.tmp', "w") as temp_file:
+            fcntl.flock(temp_file, fcntl.LOCK_EX)
+            json.dump(peers, temp_file, indent=4)
+            fcntl.flock(temp_file, fcntl.LOCK_UN)
+
+        shutil.move(file_path + '.tmp', file_path)
         print(f"Successfully saved peers to {file_path}.")
+        
     except Exception as e:
         print(f"Couldn't save peers to {file_path}: {e}")
 
 
+monitor_lock = Lock()  
+
 def monitor_traffic():
-    config_files = [f for f in os.listdir(WIREGUARD_CONFIG_DIR) if f.endswith(".conf")]
-    interfaces = [config.split(".")[0] for config in config_files]
+    if not monitor_lock.acquire(blocking=False):
+        logging.info("monitor_traffic job is already running. Skipping this execution.")
+        return  
 
-    def load_peers_with_lock(config_name: str):
-        file_path = obtain_peers_file(config_name)
-        try:
-            with open(file_path, "r") as f:
-                fcntl.flock(f, fcntl.LOCK_SH)
-                peers_data = json.load(f)
-                fcntl.flock(f, fcntl.LOCK_UN)
-            return peers_data
-        except FileNotFoundError:
-            return []
-        except json.JSONDecodeError as e:
-            logging.error(f"Couldn't decode JSON for {file_path}: {e}")
-            return []
+    try:
+        config_files = [f for f in os.listdir(WIREGUARD_CONFIG_DIR) if f.endswith(".conf")]
+        interfaces = [config.split(".")[0] for config in config_files]
 
-    def save_peers_with_lock(config_name: str, peers_data):
-        file_path = obtain_peers_file(config_name)
-        try:
-            with open(file_path, "w") as f:
-                fcntl.flock(f, fcntl.LOCK_EX)
-                json.dump(peers_data, f, indent=4)
-                fcntl.flock(f, fcntl.LOCK_UN)
-            logging.info(f"Successfully saved peers to {file_path}.")
-        except Exception as e:
-            logging.error(f"Couldn't save peers to {file_path}: {e}")
+        def load_peers_with_lock(config_name: str):
+            file_path = obtain_peers_file(config_name)
+            try:
+                with open(file_path, "r") as f:
+                    fcntl.flock(f, fcntl.LOCK_SH)
+                    peers_data = json.load(f)
+                    fcntl.flock(f, fcntl.LOCK_UN)
+                return peers_data
+            except FileNotFoundError:
+                return []
+            except json.JSONDecodeError as e:
+                logging.error(f"Couldn't decode JSON for {file_path}: {e}")
+                return []
 
-    for interface in interfaces:
-        try:
-            wg_output = subprocess.check_output(["wg", "show", interface, "transfer"], text=True)
+        def save_peers_with_lock(config_name: str, peers_data):
+            file_path = obtain_peers_file(config_name)
+            try:
+                with open(file_path + '.tmp', "w") as temp_file:
+                    fcntl.flock(temp_file, fcntl.LOCK_EX)
+                    json.dump(peers_data, temp_file, indent=4)
+                    fcntl.flock(temp_file, fcntl.LOCK_UN)
+                
+                os.rename(file_path + '.tmp', file_path)
+                logging.info(f"Successfully saved peers to {file_path}.")
+            except Exception as e:
+                logging.error(f"Couldn't save peers to {file_path}: {e}")
 
-            peers = load_peers_with_lock(interface)
+        for interface in interfaces:
+            try:
+                wg_output = subprocess.check_output(["wg", "show", interface, "transfer"], text=True)
 
-            for peer in peers:
-                if peer.get("config") != f"{interface}.conf":
-                    continue
+                peers = load_peers_with_lock(interface)
 
-                try:
-                    ip_address(peer["peer_ip"])
-                except ValueError:
-                    logging.warning(f"Wrong IP address for peer: {peer['peer_name']} - {peer['peer_ip']}")
-                    continue
+                for peer in peers:
+                    if peer.get("config") != f"{interface}.conf":
+                        continue
 
-                peer_ip = peer["peer_ip"]
-                limit_bytes = convert_to_bytes(peer["limit"])
+                    try:
+                        ip_address(peer["peer_ip"])  
+                    except ValueError:
+                        logging.warning(f"Wrong IP address for peer: {peer['peer_name']} - {peer['peer_ip']}")
+                        continue
 
-                for line in wg_output.splitlines():
-                    columns = line.split("\t")
-                    if len(columns) >= 3 and columns[0] == peer["public_key"]:
-                        try:
-                            received_bytes = int(columns[1])
-                            sent_bytes = int(columns[2])
-                        except ValueError:
-                            logging.error(f"Wrong transfer stats for peer {peer['peer_name']} in wg_output.")
-                            continue
+                    peer_ip = peer["peer_ip"]
+                    limit_bytes = convert_to_bytes(peer["limit"]) 
 
-                        last_received = peer.get("last_received_bytes", 0)
-                        last_sent = peer.get("last_sent_bytes", 0)
+                    for line in wg_output.splitlines():
+                        columns = line.split("\t")
+                        if len(columns) >= 3 and columns[0] == peer["public_key"]:
+                            try:
+                                received_bytes = int(columns[1])
+                                sent_bytes = int(columns[2])
+                            except ValueError:
+                                logging.error(f"Wrong transfer stats for peer {peer['peer_name']} in wg_output.")
+                                continue
 
-                        if received_bytes < last_received or sent_bytes < last_sent:
-                            logging.info(f"Detected reset for peer {peer['peer_name']}.")
-                            additional_bytes = received_bytes + sent_bytes
-                        else:
-                            additional_bytes = (received_bytes - last_received) + (sent_bytes - last_sent)
+                            last_received = peer.get("last_received_bytes", 0)
+                            last_sent = peer.get("last_sent_bytes", 0)
 
-                        peer["used"] += max(0, additional_bytes)
-                        peer["remaining"] = max(0, limit_bytes - peer["used"])
-                        peer["last_received_bytes"] = received_bytes
-                        peer["last_sent_bytes"] = sent_bytes
-
-                        if peer["used"] >= limit_bytes and not peer.get("monitor_blocked", False):
-                            logging.info(f"Blocking {peer['peer_name']} ({peer_ip}) - Exceeded Limit")
-                            if add_blackhole_route(peer_ip):
-                                peer["monitor_blocked"] = True
-                                logging.warning(f"Peer '{peer['peer_name']}' has been blocked due to usage limit.")
+                            if received_bytes < last_received or sent_bytes < last_sent:
+                                logging.info(f"Detected reset for peer {peer['peer_name']}.")
+                                additional_bytes = received_bytes + sent_bytes
                             else:
-                                logging.error(f"Couldn't add blackhole route for peer '{peer['peer_name']}'.")
+                                additional_bytes = (received_bytes - last_received) + (sent_bytes - last_sent)
 
-            save_peers_with_lock(interface, peers)
+                            peer["used"] += max(0, additional_bytes)
+                            peer["remaining"] = max(0, limit_bytes - peer["used"])
+                            peer["last_received_bytes"] = received_bytes
+                            peer["last_sent_bytes"] = sent_bytes
 
-        except subprocess.CalledProcessError as e:
-            if "No such device" in str(e):
-                logging.info(f"No such device for interface {interface}.")
-                continue
-            else:
-                logging.warning(f"Non-critical error for interface {interface}: {e}")
-        except Exception as e:
-            logging.error(f"Unexpected error for interface {interface}: {e}")
+                            if peer["used"] >= limit_bytes and not peer.get("monitor_blocked", False):
+                                logging.info(f"Blocking {peer['peer_name']} ({peer_ip}) - Exceeded Limit")
+                                if add_blackhole_route(peer_ip):  
+                                    peer["monitor_blocked"] = True
+                                    logging.warning(f"Peer '{peer['peer_name']}' has been blocked due to usage limit.")
+                                else:
+                                    logging.error(f"Couldn't add blackhole route for peer '{peer['peer_name']}'.")
+
+                save_peers_with_lock(interface, peers)
+
+            except subprocess.CalledProcessError as e:
+                if "No such device" in str(e):
+                    logging.info(f"No such device for interface {interface}.")
+                    continue
+                else:
+                    logging.warning(f"Non-critical error for interface {interface}: {e}")
+            except Exception as e:
+                logging.error(f"Unexpected error for interface {interface}: {e}")
+
+    finally:
+        monitor_lock.release()
 
 
 
@@ -4265,7 +4280,6 @@ def obt_interfaces():
 decrement_lock = Lock()
 
 def decrease_remaining_time():
-
     if not decrement_lock.acquire(blocking=False):
         logging.info("Skipping expiry timer as another instance is already running.")
         return
@@ -4295,10 +4309,12 @@ def decrease_remaining_time():
 
             def save_peers_with_lock(peers_data):
                 try:
-                    with open(peers_file, "w") as f:
-                        fcntl.flock(f, fcntl.LOCK_EX) 
-                        json.dump(peers_data, f, indent=4)
-                        fcntl.flock(f, fcntl.LOCK_UN) 
+                    with open(peers_file + '.tmp', "w") as temp_file:
+                        fcntl.flock(temp_file, fcntl.LOCK_EX)  
+                        json.dump(peers_data, temp_file, indent=4)
+                        fcntl.flock(temp_file, fcntl.LOCK_UN)  
+
+                    os.rename(peers_file + '.tmp', peers_file)
                     print(f"INFO: Successfully saved {peers_file} with lock.")
                 except Exception as e:
                     print(f"ERROR: Couldn't save peers to {peers_file}: {e}")
@@ -4339,8 +4355,9 @@ def decrease_remaining_time():
         print(f"ERROR: An error occurred in expiry timer: {e}")
 
     finally:
-        decrement_lock.release()
+        decrement_lock.release()  
         print("INFO: Finished expiry timer job.")
+
 
 
 def track_peer_usage(peer_ip):
@@ -4494,7 +4511,7 @@ if __name__ == "__main__":
                 scheduler.add_job(
                     monitor_traffic,
                     "interval",
-                    seconds=30,
+                    seconds=23,
                     id="monitor_traffic",
                     max_instances=1,
                     replace_existing=True
