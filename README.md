@@ -3,6 +3,8 @@
 ---------------------------------------------------------------
 ----------------------------------
 
+**شاید فردا template کاربرها را اضافه کنم. فعلا اسکرین شات ان را اضفه کرده ام. به صورت یک لینک برای هر کاربر داده میشود.قسمت frontend ان و بات مانده است**
+
 **مشکل پاک کردن db به دلیل overwrite و اختلال بین scheduler وجود دارد.فعلا چندین قفل اضافه کردم تا ببینم مشکل حل شده است یا خیر**(حتما به صورت متداول بک اپ بگیرید تا مشکلی پیش نیاید)
 
 **فعلا به json فایل ها tmp قبل از ذخیره کردن اضافه کردم و برای مانیتور و decrement هم قفل گذاشتم تا ببینم مشکل پاک شدن json فایل حل میشود یا خیر**
@@ -568,6 +570,14 @@ WantedBy=multi-user.target
     <p style="margin: 0; text-align: right;">
      <p align="right">
       <img src="https://github.com/user-attachments/assets/dc478252-de84-4173-9aa8-9233385dbdbd" alt="menu screen" style="max-width: 100px; height: auto;" />
+    </p>
+  </details>
+
+  <details>
+    <summary style="font-size: 14px; padding: 5px;">نمایش template کاربر</summary>
+    <p style="margin: 0; text-align: right;">
+     <p align="right">
+      <img src="https://github.com/user-attachments/assets/ca460557-db1d-49f7-82e7-f8496819214b" alt="menu screen" style="max-width: 100px; height: auto;" />
     </p>
   </details>
 
