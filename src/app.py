@@ -2012,14 +2012,32 @@ def add_blackhole_route(peer_ip):
                 return True  
 
             print(f"Existing non-blackhole route found for {sanitized_ip}. Removing it.")
-            subprocess.run([ip_path, "route", "del", f"{sanitized_ip}/32"], check=True)
+            remove_route = subprocess.run(
+                [ip_path, "route", "del", f"{sanitized_ip}/32"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            if remove_route.returncode != 0:
+                print(f"error in removing existing route for {sanitized_ip}: {remove_route.stderr.strip()}")
+        else:
+            print(f"no existing route found for {sanitized_ip}. adding blackhole route.")
 
-        subprocess.run([ip_path, "route", "add", "blackhole", f"{sanitized_ip}/32"], check=True)
-        print(f"Successfully added blackhole route for {sanitized_ip}")
-        return True
+        add_route = subprocess.run(
+            [ip_path, "route", "add", "blackhole", f"{sanitized_ip}/32"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        if add_route.returncode == 0:
+            print(f"Successfully added blackhole route for {sanitized_ip}")
+            return True
+        else:
+            print(f"error in adding blackhole route for {sanitized_ip}: {add_route.stderr.strip()}")
+            return False
 
     except subprocess.CalledProcessError as e:
-        print(f"error in adding blackhole route for {sanitized_ip}: {e}")
+        print(f"error in IP route command for {sanitized_ip}: {e}")
         return False
     except ValueError as e:
         print(f"Invalid IP address provided: {e}")
