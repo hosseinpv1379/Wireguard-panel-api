@@ -1885,6 +1885,34 @@ def monitor_traffic():
 
 
 
+def load_peers_with_lock(config_name):
+    try:
+        peers_file = obtain_peers_file(config_name)
+        with open(peers_file, "r") as f:
+            fcntl.flock(f, fcntl.LOCK_SH) 
+            peers_data = json.load(f)
+            fcntl.flock(f, fcntl.LOCK_UN)  
+        return peers_data
+    except FileNotFoundError:
+        print(f"INFO: {peers_file} not found. Initializing empty peer list.")
+        return []  
+    except Exception as e:
+        print(f"ERROR: Couldn't load peers from {peers_file}: {e}")
+        return []  
+
+def save_peers_with_lock(config_name, peers_data):
+    try:
+        peers_file = obtain_peers_file(config_name)
+        with open(peers_file + '.tmp', "w") as temp_file:
+            fcntl.flock(temp_file, fcntl.LOCK_EX)  
+            json.dump(peers_data, temp_file, indent=4)
+            fcntl.flock(temp_file, fcntl.LOCK_UN)  
+
+        os.rename(peers_file + '.tmp', peers_file)
+        print(f"INFO: Successfully saved {peers_file} with lock.")
+    except Exception as e:
+        print(f"ERROR: Couldn't save peers to {peers_file}: {e}")
+
 @app.route("/api/reset-traffic", methods=["POST"])
 def reset_traffic():
     try:
@@ -1895,36 +1923,34 @@ def reset_traffic():
         if not peer_name:
             return jsonify(error="Peer name is required."), 400
 
-        peers = load_peers_from_json(config_name)
+        with json_lock:  
+            peers = load_peers_with_lock(config_name)
 
-        peer = next((p for p in peers if p["peer_name"] == peer_name), None)
-        if not peer:
-            return jsonify(error=f"Peer '{peer_name}' not found in {config_name}."), 404
+            peer = next((p for p in peers if p["peer_name"] == peer_name), None)
+            if not peer:
+                return jsonify(error=f"Peer '{peer_name}' not found in {config_name}."), 404
 
-        interface = peer["config"].split(".")[0]
-        public_key = peer["public_key"]
-        peer_ip = peer["peer_ip"]
+            interface = peer["config"].split(".")[0]
+            public_key = peer["public_key"]
+            peer_ip = peer["peer_ip"]
 
-        reset_peer_traffic(interface, public_key, peer_ip)
+            reset_peer_traffic(interface, public_key, peer_ip)
 
-        peer["used"] = 0
-        peer["remaining"] = convert_to_bytes(peer["limit"])
-        save_peers_to_json(config_name, peers)
+            peer["used"] = 0
+            peer["remaining"] = convert_to_bytes(peer["limit"])
+            
+            save_peers_with_lock(config_name, peers)
 
         return jsonify(
             success=True,
             message=f"The traffic statistics for the user '{peer_name}' in the file {config_name} have been reset."
         )
     except Exception as e:
-        print(f"Error in resetting traffic: {e}")
-        return jsonify(error=f"Error in resetting traffic: {e}"), 500
-
-
-
+        print(f"error in resetting traffic: {e}")
+        return jsonify(error=f"error in resetting traffic: {e}"), 500
 
 @app.route("/api/reset-expiry", methods=["POST"])
 def reset_expiry():
-
     try:
         data = request.json
         peer_name = data.get("peerName")
@@ -1933,18 +1959,17 @@ def reset_expiry():
         if not peer_name:
             return jsonify(error="Peer name is required."), 400
 
-        peers = load_peers_from_json(config_name)
+        with json_lock:  
+            peers = load_peers_with_lock(config_name)
 
-        peer = next((p for p in peers if p["peer_name"] == peer_name), None)
-        if not peer:
-            return jsonify(error=f"Peer '{peer_name}' not found in {config_name}."), 404
+            peer = next((p for p in peers if p["peer_name"] == peer_name), None)
+            if not peer:
+                return jsonify(error=f"Peer '{peer_name}' not found in {config_name}."), 404
 
-        expiry_duration = calculate_expiry_duration(
-            peer.get("expiry_time", {})
-        )  
-        peer["remaining_time"] = expiry_duration
+            expiry_duration = calculate_expiry_duration(peer.get("expiry_time", {}))  
+            peer["remaining_time"] = expiry_duration  
 
-        save_peers_to_json(config_name, peers)
+            save_peers_with_lock(config_name, peers)
 
         return jsonify(
             success=True,
@@ -1953,7 +1978,6 @@ def reset_expiry():
     except Exception as e:
         print(f"error in resetting expiry: {e}")
         return jsonify(error=f"error in resetting expiry: {e}"), 500
-
 
 def calculate_expiry_duration(expiry_config):
 
@@ -1988,14 +2012,32 @@ def add_blackhole_route(peer_ip):
                 return True  
 
             print(f"Existing non-blackhole route found for {sanitized_ip}. Removing it.")
-            subprocess.run([ip_path, "route", "del", f"{sanitized_ip}/32"], check=True)
+            remove_route = subprocess.run(
+                [ip_path, "route", "del", f"{sanitized_ip}/32"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            if remove_route.returncode != 0:
+                print(f"error in removing existing route for {sanitized_ip}: {remove_route.stderr.strip()}")
+        else:
+            print(f"no existing route found for {sanitized_ip}. adding blackhole route.")
 
-        subprocess.run([ip_path, "route", "add", "blackhole", f"{sanitized_ip}/32"], check=True)
-        print(f"Successfully added blackhole route for {sanitized_ip}")
-        return True
+        add_route = subprocess.run(
+            [ip_path, "route", "add", "blackhole", f"{sanitized_ip}/32"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        if add_route.returncode == 0:
+            print(f"Successfully added blackhole route for {sanitized_ip}")
+            return True
+        else:
+            print(f"error in adding blackhole route for {sanitized_ip}: {add_route.stderr.strip()}")
+            return False
 
     except subprocess.CalledProcessError as e:
-        print(f"Error in adding blackhole route for {sanitized_ip}: {e}")
+        print(f"error in IP route command for {sanitized_ip}: {e}")
         return False
     except ValueError as e:
         print(f"Invalid IP address provided: {e}")
@@ -2028,7 +2070,7 @@ def remove_blackhole_route(peer_ip):
         return True
 
     except subprocess.CalledProcessError as e:
-        print(f"Error in removing blackhole route for {sanitized_ip}: {e}")
+        print(f"error in removing blackhole route for {sanitized_ip}: {e}")
         return False
     except ValueError as e:
         print(f"Invalid IP address provided: {e}")
@@ -2223,26 +2265,28 @@ def block_peer():
         if not peer_name:
             return jsonify(error="Peer name is required."), 400
 
-        peers = load_peers_from_json(config_name)
+        with json_lock:  
+            peers = load_peers_with_lock(config_name)  
 
-        peer = next((p for p in peers if p["peer_name"] == peer_name), None)
-        if not peer:
-            return jsonify(error=f"Peer '{peer_name}' not found in {config_name}."), 404
+            peer = next((p for p in peers if p["peer_name"] == peer_name), None)
+            if not peer:
+                return jsonify(error=f"Peer '{peer_name}' not found in {config_name}."), 404
 
-        if peer["monitor_blocked"] and peer["expiry_blocked"]:
-            return jsonify(
-                success=True,
-                message=f"Peer {peer_name} in {config_name} is already blocked."
-            )
+            if peer.get("monitor_blocked", False) and peer.get("expiry_blocked", False):
+                return jsonify(
+                    success=True,
+                    message=f"Peer {peer_name} in {config_name} is already blocked."
+                )
 
-        print(f"Blocking IP: {peer['peer_ip']} for {config_name}")
-        success = add_blackhole_route(peer["peer_ip"])
-        if not success:
-            return jsonify(error=f"Couldn't block peer {peer_name} in {config_name}."), 500
+            print(f"Blocking IP: {peer['peer_ip']} for {config_name}")
+            success = add_blackhole_route(peer["peer_ip"])
+            if not success:
+                return jsonify(error=f"Couldn't block peer {peer_name} in {config_name}."), 500
 
-        peer["monitor_blocked"] = True
-        peer["expiry_blocked"] = True
-        save_peers_to_json(config_name, peers)
+            peer["monitor_blocked"] = True
+            peer["expiry_blocked"] = True
+
+            save_peers_with_lock(config_name, peers)
 
         return jsonify(
             success=True,
@@ -2250,8 +2294,9 @@ def block_peer():
             message=f"Peer {peer_name} in {config_name} has been blocked."
         )
     except Exception as e:
-        print(f"Error in blocking peer: {e}")
+        print(f"error in blocking peer: {e}")
         return jsonify(error=str(e)), 500
+
 
 @app.route("/api/unblock-peer", methods=["POST"])
 def unblock_peer():
@@ -2263,26 +2308,28 @@ def unblock_peer():
         if not peer_name:
             return jsonify(error="Peer name is required."), 400
 
-        peers = load_peers_from_json(config_name)
+        with json_lock:  
+            peers = load_peers_with_lock(config_name)  
 
-        peer = next((p for p in peers if p["peer_name"] == peer_name), None)
-        if not peer:
-            return jsonify(error=f"Peer '{peer_name}' not found in {config_name}."), 404
+            peer = next((p for p in peers if p["peer_name"] == peer_name), None)
+            if not peer:
+                return jsonify(error=f"Peer '{peer_name}' not found in {config_name}."), 404
 
-        if not peer["monitor_blocked"] and not peer["expiry_blocked"]:
-            return jsonify(
-                success=True,
-                message=f"Peer {peer_name} in {config_name} is already unblocked."
-            )
+            if not peer.get("monitor_blocked", False) and not peer.get("expiry_blocked", False):
+                return jsonify(
+                    success=True,
+                    message=f"Peer {peer_name} in {config_name} is already unblocked."
+                )
 
-        print(f"Unblocking IP: {peer['peer_ip']} for {config_name}")
-        success = remove_blackhole_route(peer["peer_ip"])
-        if not success:
-            return jsonify(error=f"Couldn't unblock peer {peer_name} in {config_name}."), 500
+            print(f"Unblocking IP: {peer['peer_ip']} for {config_name}")
+            success = remove_blackhole_route(peer["peer_ip"])
+            if not success:
+                return jsonify(error=f"Couldn't unblock peer {peer_name} in {config_name}."), 500
 
-        peer["monitor_blocked"] = False
-        peer["expiry_blocked"] = False
-        save_peers_to_json(config_name, peers)
+            peer["monitor_blocked"] = False
+            peer["expiry_blocked"] = False
+
+            save_peers_with_lock(config_name, peers)
 
         return jsonify(
             success=True,
@@ -2290,7 +2337,7 @@ def unblock_peer():
             message=f"Peer {peer_name} in {config_name} has been unblocked."
         )
     except Exception as e:
-        print(f"Error in unblocking peer: {e}")
+        print(f"error in unblocking peer: {e}")
         return jsonify(error=str(e)), 500
 
     
@@ -2966,39 +3013,41 @@ def toggle_peer():
         if not peer_name:
             return jsonify(error="Peer name is required."), 400
 
-        peers = load_peers_from_json(config_name)
-        peer = next((p for p in peers if p["peer_name"] == peer_name), None)
+        with json_lock:  
+            peers = load_peers_with_lock(config_name) 
 
-        if not peer:
-            return jsonify(error=f"Peer '{peer_name}' not found in {config_name}."), 404
+            peer = next((p for p in peers if p["peer_name"] == peer_name), None)
 
-        print(f"Current state of peer '{peer_name}': monitor_blocked={peer.get('monitor_blocked')}, expiry_blocked={peer.get('expiry_blocked')}")
+            if not peer:
+                return jsonify(error=f"Peer '{peer_name}' not found in {config_name}."), 404
 
-        peer["monitor_blocked"] = blocked
-        peer["expiry_blocked"] = blocked
+            print(f"Current state of peer '{peer_name}': monitor_blocked={peer.get('monitor_blocked')}, expiry_blocked={peer.get('expiry_blocked')}")
 
-        if not blocked:  
-            print(f"Enabling peer '{peer_name}'. Resetting values.")
+            peer["monitor_blocked"] = blocked
+            peer["expiry_blocked"] = blocked
 
-            peer["remaining"] = convert_to_bytes(peer.get("limit", "0MiB"))
-            peer["remaining_time"] = calculate_expiry_duration(peer.get("expiry_time", {}))
-            peer["used"] = 0
-            peer["last_received_bytes"] = 0  
-            peer["last_sent_bytes"] = 0   
+            if not blocked: 
+                print(f"Enabling peer '{peer_name}'. Resetting values.")
 
-            print(f"Unblocking IP: {peer['peer_ip']} for {config_name}")
-            success = remove_blackhole_route(peer["peer_ip"])
-            if not success:
-                print(f"Failed to remove blackhole route for {peer['peer_ip']}")
-                return jsonify(error=f"Couldn't unblock peer {peer_name} in {config_name}."), 500
-        else:  
-            print(f"Disabling peer '{peer_name}'. Blocking IP.")
-            success = add_blackhole_route(peer["peer_ip"])
-            if not success:
-                print(f"Failed to add blackhole route for {peer['peer_ip']}")
-                return jsonify(error=f"Couldn't block peer {peer_name} in {config_name}."), 500
+                peer["remaining"] = convert_to_bytes(peer.get("limit", "0MiB"))
+                peer["remaining_time"] = calculate_expiry_duration(peer.get("expiry_time", {}))
+                peer["used"] = 0
+                peer["last_received_bytes"] = 0  
+                peer["last_sent_bytes"] = 0   
 
-        save_peers_to_json(config_name, peers)
+                print(f"Unblocking IP: {peer['peer_ip']} for {config_name}")
+                success = remove_blackhole_route(peer["peer_ip"])
+                if not success:
+                    print(f"Failed to remove blackhole route for {peer['peer_ip']}")
+                    return jsonify(error=f"Couldn't unblock peer {peer_name} in {config_name}."), 500
+            else:  
+                print(f"Disabling peer '{peer_name}'. Blocking IP.")
+                success = add_blackhole_route(peer["peer_ip"])
+                if not success:
+                    print(f"Failed to add blackhole route for {peer['peer_ip']}")
+                    return jsonify(error=f"Couldn't block peer {peer_name} in {config_name}."), 500
+
+            save_peers_with_lock(config_name, peers)
 
         return jsonify(
             message=f"Peer {peer_name} in {config_name} {'disabled' if blocked else 'enabled'} successfully.",
@@ -3006,7 +3055,7 @@ def toggle_peer():
         )
 
     except Exception as e:
-        print(f"Error in toggling peer: {e}")
+        print(f"error in toggling peer: {e}")
         return jsonify(error="Couldn't toggle peer state."), 500
 
 
@@ -3663,71 +3712,72 @@ def create_peer():
         if total_expiry_minutes <= 0:
             return jsonify({"error": "Total expiry time must be greater than zero."}), 400
 
-        peers = load_peers_from_json(config_file)
-        print(f"Loaded peers from {config_file}.json: {peers}")  
+        with json_lock:  
+            peers = load_peers_with_lock(config_file)  
+            print(f"Loaded peers from {config_file}.json: {peers}")  
 
-        for peer in peers:
-            if peer.get("peer_ip") == peer_ip:
-                if not peer.get("deleted", False):
-                    return jsonify({"error": f"Peer IP {peer_ip} is already in use."}), 400
-                else:
-                    peer["deleted"] = False 
-                    save_peers_to_json(config_file, peers)
-                    break
+            for peer in peers:
+                if peer.get("peer_ip") == peer_ip:
+                    if not peer.get("deleted", False):
+                        return jsonify({"error": f"Peer IP {peer_ip} is already in use."}), 400
+                    else:
+                        peer["deleted"] = False 
+                        save_peers_with_lock(config_file, peers)  
+                        break
 
-        client_private_key_bytes = nacl.bindings.randombytes(32)
-        client_private_key = base64.b64encode(client_private_key_bytes).decode("utf-8")
-        client_public_key = derive_public_key(client_private_key)
+            client_private_key_bytes = nacl.bindings.randombytes(32)
+            client_private_key = base64.b64encode(client_private_key_bytes).decode("utf-8")
+            client_public_key = derive_public_key(client_private_key)
 
-        peer = {
-            "peer_name": peer_name,
-            "peer_ip": peer_ip,
-            "dns": dns,
-            "limit": data_limit,
-            "used": 0,
-            "remaining": convert_to_bytes(data_limit),
-            "monitor_blocked": False,
-            "expiry_blocked": False,
-            "private_key": client_private_key,
-            "public_key": client_public_key,
-            "expiry_time": {
-                "months": expiry_months,
-                "days": expiry_days,
-                "hours": expiry_hours,
-                "minutes": expiry_minutes,
-            },
-            "remaining_time": total_expiry_minutes,
-            "first_usage": first_usage,
-            "persistent_keepalive": persistent_keepalive,
-            "mtu": mtu,
-            "config": config_file,
-            "last_received_bytes": 0, 
-            "last_sent_bytes": 0,  
-        }
+            peer = {
+                "peer_name": peer_name,
+                "peer_ip": peer_ip,
+                "dns": dns,
+                "limit": data_limit,
+                "used": 0,
+                "remaining": convert_to_bytes(data_limit),
+                "monitor_blocked": False,
+                "expiry_blocked": False,
+                "private_key": client_private_key,
+                "public_key": client_public_key,
+                "expiry_time": {
+                    "months": expiry_months,
+                    "days": expiry_days,
+                    "hours": expiry_hours,
+                    "minutes": expiry_minutes,
+                },
+                "remaining_time": total_expiry_minutes,
+                "first_usage": first_usage,
+                "persistent_keepalive": persistent_keepalive,
+                "mtu": mtu,
+                "config": config_file,
+                "last_received_bytes": 0, 
+                "last_sent_bytes": 0,  
+            }
 
-        peers.append(peer)
-        save_peers_to_json(config_file, peers)
+            peers.append(peer)
+            save_peers_with_lock(config_file, peers)  
 
-        interface = sanitize_interface_name(config_file.split(".")[0])
+            interface = sanitize_interface_name(config_file.split(".")[0])
 
-        wg_path = "wg"  
+            wg_path = "wg"  
 
-        subprocess.run(
-            [wg_path, "set", interface, "peer", client_public_key, "allowed-ips", f"{sanitized_peer_ip}/32"],
-            check=True
-        )
+            subprocess.run(
+                [wg_path, "set", interface, "peer", client_public_key, "allowed-ips", f"{sanitized_peer_ip}/32"],
+                check=True
+            )
 
-        config_path = os.path.join(WIREGUARD_CONFIG_DIR, config_file)
-        peer_config = (
-            f"[Peer]\n"
-            f"# {peer_name}\n"
-            f"PublicKey = {client_public_key}\n"
-            f"AllowedIPs = {peer_ip}/32\n"
-            f"PersistentKeepalive = {persistent_keepalive}\n"
-        ).strip() + "\n\n"
+            config_path = os.path.join(WIREGUARD_CONFIG_DIR, config_file)
+            peer_config = (
+                f"[Peer]\n"
+                f"# {peer_name}\n"
+                f"PublicKey = {client_public_key}\n"
+                f"AllowedIPs = {peer_ip}/32\n"
+                f"PersistentKeepalive = {persistent_keepalive}\n"
+            ).strip() + "\n\n"
 
-        with open(config_path, "a") as conf:
-            conf.write(peer_config)
+            with open(config_path, "a") as conf:
+                conf.write(peer_config)
 
         return jsonify(message=f"Peer created successfully in {config_file}!", peer=peer)
 
@@ -3756,69 +3806,72 @@ def delete_peer():
         if not config_file or not re.match(r"^[a-zA-Z0-9_-]+\.conf$", config_file):
             return jsonify(error="Valid config file name is required."), 400
 
-        peers = load_peers_from_json(config_file)
+        with json_lock:  
+            peers = load_peers_with_lock(config_file) 
 
-        peer = next((p for p in peers if p["peer_name"] == peer_name), None)
-        if not peer:
-            return jsonify(error=f"Peer '{peer_name}' not found in {config_file}."), 404
+            peer = next((p for p in peers if p["peer_name"] == peer_name), None)
+            if not peer:
+                return jsonify(error=f"Peer '{peer_name}' not found in {config_file}."), 404
 
-        interface = sanitize_interface_name(config_file.split(".")[0])
-        public_key = sanitize_public_key(peer["public_key"])
+            interface = sanitize_interface_name(config_file.split(".")[0])
+            public_key = sanitize_public_key(peer["public_key"])
 
-        try:
-            wg_path = "wg"
-            result = subprocess.run(
-                [wg_path, "set", interface, "peer", public_key, "remove"],
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-            if result.returncode != 0:
-                logging.error(f"error in removing peer from WireGuard: {result.stderr}")
-                return jsonify(error=f"Couldn't remove peer from WireGuard: {result.stderr}"), 500
-        except subprocess.CalledProcessError as e:
-            logging.error(f"error in removing peer from WireGuard: {e.stderr}")
-            return jsonify(error=f"Couldn't remove peer from WireGuard: {e.stderr}"), 500
+            try:
+                wg_path = "wg"
+                result = subprocess.run(
+                    [wg_path, "set", interface, "peer", public_key, "remove"],
+                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                if result.returncode != 0:
+                    logging.error(f"error in removing peer from WireGuard: {result.stderr}")
+                    return jsonify(error=f"Couldn't remove peer from WireGuard: {result.stderr}"), 500
+            except subprocess.CalledProcessError as e:
+                logging.error(f"error in removing peer from WireGuard: {e.stderr}")
+                return jsonify(error=f"Couldn't remove peer from WireGuard: {e.stderr}"), 500
 
-        peer_ip = peer.get("peer_ip")
-        if peer_ip and not remove_blackhole_route(peer_ip):
-            logging.warning(f"Couldn't remove blackhole route for IP {peer_ip}.")
+            peer_ip = peer.get("peer_ip")
+            if peer_ip and not remove_blackhole_route(peer_ip):
+                logging.warning(f"Couldn't remove blackhole route for IP {peer_ip}.")
 
-        config_path = os.path.join(WIREGUARD_CONFIG_DIR, config_file)
-        try:
-            with open(config_path, "r") as conf_file:
-                lines = conf_file.readlines()
+            config_path = os.path.join(WIREGUARD_CONFIG_DIR, config_file)
+            try:
+                with open(config_path, "r") as conf_file:
+                    lines = conf_file.readlines()
 
-            new_lines = []
-            inside_peer_block = False
+                new_lines = []
+                inside_peer_block = False
 
-            for i, line in enumerate(lines):
-                if line.startswith("[Peer]"):
-                    if f"# {peer_name}" in lines[i + 1] or peer["public_key"] in lines[i + 1]:
-                        inside_peer_block = True
+                for i, line in enumerate(lines):
+                    if line.startswith("[Peer]"):
+                        if f"# {peer_name}" in lines[i + 1] or peer["public_key"] in lines[i + 1]:
+                            inside_peer_block = True
+                            continue
+                    if inside_peer_block:
+                        if line.strip() == "":  
+                            inside_peer_block = False
                         continue
-                if inside_peer_block:
-                    if line.strip() == "":  
-                        inside_peer_block = False
-                    continue
-                new_lines.append(line)
+                    new_lines.append(line)
 
-            with open(config_path, "w") as conf_file:
-                conf_file.writelines(new_lines)
+                with open(config_path, "w") as conf_file:
+                    conf_file.writelines(new_lines)
 
-            logging.info(f"Updated WireGuard config file '{config_path}'.")
-        except Exception as e:
-            logging.error(f"error in updating WireGuard config file '{config_path}': {e}")
-            return jsonify(error="Couldn't update WireGuard config file."), 500
+                logging.info(f"Updated WireGuard config file '{config_path}'.")
+            except Exception as e:
+                logging.error(f"error in updating WireGuard config file '{config_path}': {e}")
+                return jsonify(error="Couldn't update WireGuard config file."), 500
 
-        peers = [p for p in peers if p["peer_name"] != peer_name]
-        save_peers_to_json(config_file, peers)
+            peers = [p for p in peers if p["peer_name"] != peer_name]
+            save_peers_with_lock(config_file, peers)  
 
         return jsonify(success=True, message=f"Peer '{peer_name}' has been deleted dynamically.")
     except Exception as e:
         logging.error(f"error in deleting peer: {e}")
         return jsonify(error=f"error in deleting peer: {e}"), 500
+
+
 
 
 
@@ -4184,39 +4237,44 @@ def edit_peer():
         if expiry_months < 0 or expiry_days < 0 or expiry_hours < 0 or expiry_minutes < 0:
             return jsonify({"error": "Expiry times cannot be negative."}), 400
 
-        peers = load_peers_from_json(config_file)
+        with json_lock:  
+            peers = load_peers_with_lock(config_file)  
 
-        peer = next((p for p in peers if p["peer_name"] == peer_name), None)
-        if not peer:
-            return jsonify({"error": f"Peer {peer_name} not found in {config_file}"}), 404
+            peer = next((p for p in peers if p["peer_name"] == peer_name), None)
+            if not peer:
+                return jsonify({"error": f"Peer {peer_name} not found in {config_file}"}), 404
 
-        if new_limit:
-            peer["limit"] = new_limit
-            peer["remaining"] = max(0, convert_to_bytes(new_limit) - peer.get("used", 0))
+            if new_limit:
+                peer["limit"] = new_limit
+                peer["remaining"] = max(0, convert_to_bytes(new_limit) - peer.get("used", 0))
 
-        if new_dns:
-            peer["dns"] = new_dns
+            if new_dns:
+                peer["dns"] = new_dns
 
-        total_minutes = (
-            expiry_months * 30 * 24 * 60 +
-            expiry_days * 24 * 60 +
-            expiry_hours * 60 +
-            expiry_minutes
-        )
-        if total_minutes > 0:
-            peer["expiry_time"] = {
-                "months": expiry_months,
-                "days": expiry_days,
-                "hours": expiry_hours,
-                "minutes": expiry_minutes,
-            }
-            peer["remaining_time"] = total_minutes
+            total_minutes = (
+                expiry_months * 30 * 24 * 60 +
+                expiry_days * 24 * 60 +
+                expiry_hours * 60 +
+                expiry_minutes
+            )
+            if total_minutes > 0:
+                peer["expiry_time"] = {
+                    "months": expiry_months,
+                    "days": expiry_days,
+                    "hours": expiry_hours,
+                    "minutes": expiry_minutes,
+                }
+                peer["remaining_time"] = total_minutes
 
-        save_peers_to_json(config_file, peers)
+            save_peers_with_lock(config_file, peers) 
+
         return jsonify({"message": "Peer updated successfully", "peer": peer})
+
     except Exception as e:
-        print(f"Error in editing peer: {e}")
+        print(f"error in editing peer: {e}")
         return jsonify({"error": f"Couldn't update peer: {str(e)}"}), 500
+
+
 
 
 
