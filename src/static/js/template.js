@@ -112,23 +112,19 @@ function fetchPeerDetails() {
       const remainingRatio = (numericLimit > 0) ? (remainingVal / numericLimit) * 100 : 0;
       remainingProgress.style.width = `${Math.min(100, remainingRatio)}%`;
 
-      fetch(`/api/search-peers?query=${encodeURIComponent(peerName)}`)
-        .then(statusResponse => statusResponse.json())
-        .then(statusData => {
-          const peer = statusData.peers.find(p => p.peer_name === peerName);
-          if (peer && !peer.monitor_blocked && !peer.expiry_blocked) {
-            clientStatusLabel.textContent = "فعال";
-            clientStatusLabel.style.color = "#4CAF50";
-          } else {
-            clientStatusLabel.textContent = "غیرفعال";
-            clientStatusLabel.style.color = "#F44336";
-          }
-        });
+      if (data.status === "active") {
+        clientStatusLabel.textContent = "فعال";
+        clientStatusLabel.style.color = "#4CAF50";
+      } else {
+        clientStatusLabel.textContent = "غیرفعال";
+        clientStatusLabel.style.color = "#F44336";
+      }
     })
     .catch(error => {
-      console.error("Error in fetching peer details:", error);
+      console.error("error in fetching peer details:", error);
     });
 }
+
 
   refreshBtn.addEventListener("click", fetchPeerDetails);
   qrCodeBtn.addEventListener("click", function () {
