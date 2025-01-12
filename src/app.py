@@ -2,6 +2,7 @@ from flask import Flask, render_template, jsonify, request, redirect, session, f
 import os
 import subprocess
 import gunicorn.app.base
+import secrets
 from gunicorn.app.base import BaseApplication
 from ipaddress import ip_network
 import psutil
@@ -113,6 +114,7 @@ BACKUP_DIR = os.path.join(BASE_DIR, "backups")
 DB_FILE = os.path.join(BASE_DIR, "db.json")
 DB_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), "db") 
 os.makedirs(DB_DIR, exist_ok=True)  
+SHORT_LINKS_FILE = os.path.join(BASE_DIR, "short_links.json")
 WIREGUARD_CONFIG_DIR = config["wireguard"]["config_dir"]
 PEERS = []  
 print(f"BASE_DIR: {BASE_DIR}")
@@ -2040,9 +2042,8 @@ def add_blackhole_route(peer_ip):
         print(f"error in IP route command for {sanitized_ip}: {e}")
         return False
     except ValueError as e:
-        print(f"Invalid IP address provided: {e}")
+        print(f"wrong IP address provided: {e}")
         return False
-
 
 
 def remove_blackhole_route(peer_ip):
@@ -3653,21 +3654,51 @@ def warp_page():
     template_name = "warp-fa.html" if language == "fa" else "warp.html"
     return render_template(template_name)
 
+short_links = {}
+@app.route("/s/<short_id>", methods=["GET"])
+def short_redirect(short_id):
+    short_links = load_short_links()
 
+    encrypted_link = short_links.get(short_id)
+    if not encrypted_link:
+        return "Link not found or already removed", 404
+
+    try:
+        long_link = cipher.decrypt(encrypted_link.encode()).decode()
+    except Exception as e:
+        print(f"Decryption error: {e}")
+        return "Invalid link", 404
+
+    return redirect(long_link)
+
+
+
+
+
+def load_short_links():
+    try:
+        with open(SHORT_LINKS_FILE, "r") as file:
+            return json.load(file)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+def save_short_links(short_links):
+    with open(SHORT_LINKS_FILE, "w") as file:
+        json.dump(short_links, file, indent=4)
 
 @app.route("/api/create-peer", methods=["POST"])
-@limiter.limit("20 per minute")
 def create_peer():
     try:
         data = request.json
-        print(f"Received data: {data}")  
+        print(f"Received data: {data}")
+        
         peer_name = data.get('peerName')
         if not peer_name or not re.match(r'^[a-zA-Z0-9_]+$', peer_name):
             return jsonify({"error": "Wrong peer name. Only letters, numbers, and underscores are allowed."}), 400
 
         peer_ip = data.get('peerIp')
         try:
-            sanitized_peer_ip = sanitize_ip(peer_ip)  
+            sanitized_peer_ip = sanitize_ip(peer_ip)
         except ValueError:
             return jsonify({"error": "Wrong IP address."}), 400
 
@@ -3675,14 +3706,14 @@ def create_peer():
         if not data_limit or not re.match(r'^\d+(MiB|GiB)$', data_limit):
             return jsonify({"error": "Wrong data limit. Must be a number followed by MiB or GiB."}), 400
         numeric_limit = int(data_limit[:-3])
-        if numeric_limit <= 0 or numeric_limit > 1024:  
+        if numeric_limit <= 0 or numeric_limit > 1024:
             return jsonify({"error": "Data limit must be between 1 and 1024 MiB/GiB."}), 400
 
-        config_file = data.get("configFile", "wg0.conf") 
-        if not re.match(r'^[a-zA-Z0-9_-]+\.conf$', config_file):  
+        config_file = data.get("configFile", "wg0.conf")
+        if not re.match(r'^[a-zA-Z0-9_-]+\.conf$', config_file):
             return jsonify({"error": "Wrong config file name."}), 400
 
-        dns = data.get('dns') or "1.1.1.1" 
+        dns = data.get('dns') or "1.1.1.1"
         if dns:
             dns_list = dns.split(",")
             for dns_entry in dns_list:
@@ -3693,15 +3724,14 @@ def create_peer():
         expiry_months = int(data.get("expiryMonths") or 0)
         expiry_hours = int(data.get("expiryHours") or 0)
         expiry_minutes = int(data.get("expiryMinutes") or 0)
-
         if expiry_days < 0 or expiry_months < 0 or expiry_hours < 0 or expiry_minutes < 0:
             return jsonify({"error": "Expiry times cannot be negative."}), 400
 
         first_usage = not data.get("firstUsage", False)
-        persistent_keepalive = data.get("persistentKeepalive", 25) 
-        mtu = data.get("mtu", 1280)  
+        persistent_keepalive = data.get("persistentKeepalive", 25)
+        mtu = data.get("mtu", 1280)
 
-        print(f"First usage set to: {first_usage}")  
+        print(f"First usage set to: {first_usage}")
 
         total_expiry_minutes = (
             expiry_months * 30 * 24 * 60 +
@@ -3712,18 +3742,20 @@ def create_peer():
         if total_expiry_minutes <= 0:
             return jsonify({"error": "Total expiry time must be greater than zero."}), 400
 
-        with json_lock:  
-            peers = load_peers_with_lock(config_file)  
-            print(f"Loaded peers from {config_file}.json: {peers}")  
+        with json_lock:
+            peers = load_peers_with_lock(config_file)
+            print(f"Loaded peers from {config_file}.json: {peers}")
 
             for peer in peers:
                 if peer.get("peer_ip") == peer_ip:
                     if not peer.get("deleted", False):
                         return jsonify({"error": f"Peer IP {peer_ip} is already in use."}), 400
                     else:
-                        peer["deleted"] = False 
-                        save_peers_with_lock(config_file, peers)  
+                        peer["deleted"] = False
+                        save_peers_with_lock(config_file, peers)
                         break
+
+            peer_token = generate_peer_token()
 
             client_private_key_bytes = nacl.bindings.randombytes(32)
             client_private_key = base64.b64encode(client_private_key_bytes).decode("utf-8")
@@ -3740,6 +3772,7 @@ def create_peer():
                 "expiry_blocked": False,
                 "private_key": client_private_key,
                 "public_key": client_public_key,
+                "token": peer_token,  
                 "expiry_time": {
                     "months": expiry_months,
                     "days": expiry_days,
@@ -3751,15 +3784,15 @@ def create_peer():
                 "persistent_keepalive": persistent_keepalive,
                 "mtu": mtu,
                 "config": config_file,
-                "last_received_bytes": 0, 
-                "last_sent_bytes": 0,  
+                "last_received_bytes": 0,
+                "last_sent_bytes": 0,
+                "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
             }
 
             peers.append(peer)
-            save_peers_with_lock(config_file, peers)  
+            save_peers_with_lock(config_file, peers)
 
             interface = sanitize_interface_name(config_file.split(".")[0])
-
             wg_path = "wg"  
 
             subprocess.run(
@@ -3767,7 +3800,7 @@ def create_peer():
                 check=True
             )
 
-            config_path = os.path.join(WIREGUARD_CONFIG_DIR, config_file)
+            config_path = os.path.join("/etc/wireguard", config_file) 
             peer_config = (
                 f"[Peer]\n"
                 f"# {peer_name}\n"
@@ -3779,12 +3812,206 @@ def create_peer():
             with open(config_path, "a") as conf:
                 conf.write(peer_config)
 
-        return jsonify(message=f"Peer created successfully in {config_file}!", peer=peer)
+        long_interactive_link = url_for(
+            'peer_details',
+            peer_name=peer['peer_name'],
+            config_file=peer['config'],
+            token=peer_token,
+            _external=True
+        )
+        encrypted_link = cipher.encrypt(long_interactive_link.encode())
+        short_id = secrets.token_urlsafe(8)  
+        short_links[short_id] = encrypted_link.decode()
+        save_short_links(short_links)
 
+        short_interactive_link = url_for('short_redirect', short_id=short_id, _external=True)
+
+        print(f"Long interactive link for peer '{peer_name}': {long_interactive_link}")
+        print(f"Short interactive link for peer '{peer_name}': {short_interactive_link}")
+
+        return jsonify({
+            "message": f"Peer created successfully in {config_file}!",
+            "peer_name": peer_name,
+            "short_link": short_interactive_link
+        })
     except Exception as e:
-        print(f"Error: {e}")  
+        print(f"Error: {e}")
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
+@app.route("/api/get-peer-link", methods=["GET"])
+def get_peer_short_link():
+    peer_name = request.args.get("peerName")
+    config_file = request.args.get("config")
+
+    if not peer_name or not config_file:
+        return jsonify({"error": "Peer name and config file are required."}), 400
+
+    try:
+        with json_lock:
+            peers = load_peers_with_lock(config_file)
+            peer = next((p for p in peers if p["peer_name"] == peer_name), None)
+            if not peer:
+                return jsonify({"error": f"Peer '{peer_name}' not found in {config_file}."}), 404
+
+            short_links = load_short_links()
+            long_link = url_for(
+                'peer_details',
+                peer_name=peer_name,
+                config_file=config_file,
+                token=peer["token"],
+                _external=True
+            )
+
+            short_id = next(
+                (key for key, value in short_links.items()
+                 if cipher.decrypt(value.encode()).decode() == long_link),
+                None
+            )
+
+            if short_id:
+                short_link = url_for('short_redirect', short_id=short_id, _external=True)
+                return jsonify({"short_link": short_link})
+            else:
+                return jsonify({"error": "Short link not found."}), 404
+    except Exception as e:
+        print(f"error in fetching peer short link: {e}")
+        return jsonify({"error": f"error happened: {str(e)}"}), 500
+
+
+def generate_peer_token():
+    return secrets.token_urlsafe(16)
+
+@app.route('/peer-details', methods=['GET'])
+def peer_details():
+    peer_name = request.args.get('peer_name')
+    config_file = request.args.get('config_file')
+    token = request.args.get('token')
+
+    app.logger.info(f"Peer Name: {peer_name}")
+    app.logger.info(f"Config File: {config_file}")
+    app.logger.info(f"Token: {token}")
+
+    if not peer_name or not config_file or not token:
+        return jsonify({"error": "Peer name, config file, and token are required."}), 400
+
+    return render_template(
+        'template.html',
+        peer_name=peer_name,
+        config_file=config_file,
+        token=token
+    )
+
+@app.route('/api/peer-detailz', methods=['GET'])
+def api_peer_details():
+    peer_name = request.args.get('peer_name')  
+    config_file = request.args.get('config_file')  
+    token = request.args.get('token') 
+
+    if not peer_name or not config_file or not token:
+        return jsonify({"error": "Peer name, config file, and token are required."}), 400
+
+    try:
+        peer_details = obtain_peer_details_from_storage(peer_name, config_file, token)
+
+        return jsonify(peer_details)
+
+    except ValueError as e:
+        app.logger.error(f"ValueError: {str(e)}")
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        app.logger.error(f"Exception: {str(e)}")
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+
+def obtain_peer_details_from_storage(peer_name, config_file, token):
+    try:
+        peers_file = obtain_peers_file(config_file)
+        peers_metadata = load_peers_from_json(peers_file)
+
+        peer = next((p for p in peers_metadata if p["peer_name"] == peer_name), None)
+
+        if not peer:
+            raise ValueError(f"Peer with name '{peer_name}' not found in {config_file}.")
+
+        if peer["token"] != token:
+            raise ValueError("Invalid token for this peer.")
+
+        peer["used_human"] = bytes_to_readable(peer.get("used", 0))
+        peer["remaining_human"] = bytes_to_readable(peer.get("remaining", 0))
+        peer["limit_human"] = bytes_to_readable(convert_to_bytes(peer["limit"]))
+
+        created_at_str = peer.get("created_at", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"))
+        created_at = datetime.strptime(created_at_str, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+        expiry_days = peer.get("expiry_time", {}).get("days", 0)
+        expiry = created_at + timedelta(days=expiry_days)
+        now = datetime.now(timezone.utc)
+
+        peer["expiry"] = expiry.strftime("%Y-%m-%d %H:%M:%S")
+
+        time_diff = expiry - now
+        if time_diff.total_seconds() <= 0:
+            peer["expiry_human"] = "Expired"
+        else:
+            exp_days = time_diff.days
+            exp_hours = time_diff.seconds // 3600
+            exp_minutes = (time_diff.seconds % 3600) // 60
+            peer["expiry_human"] = f"{exp_days} روز، {exp_hours} ساعت، {exp_minutes} دقیقه باقی مانده"
+
+        total_minutes = peer.get("remaining_time", 0)
+        days = total_minutes // (24 * 60)
+        hours = (total_minutes % (24 * 60)) // 60
+        minutes = total_minutes % 60
+
+        peer["remaining_time_human"] = f"{days} روز، {hours} ساعت، {minutes} دقیقه"
+
+        return {
+            "peer_name": peer["peer_name"],
+            "limit_human": peer["limit_human"],
+            "used_human": peer["used_human"],
+            "remaining_human": peer["remaining_human"],
+            "expiry_human": peer["expiry_human"],
+            "remaining_time": peer["remaining_time"], 
+            "remaining_time_human": peer["remaining_time_human"]  
+        }
+
+    except Exception as e:
+        raise ValueError(f"error in obtaining peer details: {str(e)}")
+
+def get_public_ip():
+    try:
+        response = requests.get("https://api.ipify.org?format=json")
+        if response.status_code == 200:
+            return response.json().get("ip")
+    except Exception as e:
+        print(f"error in fetching public IP: {e}")
+    return None
+
+def get_server_location():
+    public_ip = get_public_ip()
+    print(f"got Public IP: {public_ip}") 
+    if not public_ip:
+        print("Couldn't determine the public IP.")
+        return {"country": "Unknown", "country_code": ""}
+
+    try:
+        response = requests.get(f"https://ipwho.is/{public_ip}")
+        print(f"ipwho.is Response Status Code: {response.status_code}")  
+        print(f"ipwho.is Response Text: {response.text}")  
+        if response.status_code == 200:
+            data = response.json()
+            return {
+                "country": data.get("country", "Unknown"),
+                "country_code": data.get("country_code", "").lower(),
+            }
+    except Exception as e:
+        print(f"error in fetching server location: {e}")
+
+    return {"country": "Unknown", "country_code": ""}
+
+
+@app.context_processor
+def inject_server_location():
+    location = get_server_location()
+    return dict(server_location=location)
 
 
 def sanitize_public_key(public_key: str):
@@ -3792,6 +4019,8 @@ def sanitize_public_key(public_key: str):
         return public_key
     else:
         raise ValueError(f"Wrong public key: {public_key}")
+
+short_links_lock = threading.Lock()
 
 @app.route("/api/delete-peer", methods=["POST"])
 def delete_peer():
@@ -3826,11 +4055,11 @@ def delete_peer():
                     text=True,
                 )
                 if result.returncode != 0:
-                    logging.error(f"error in removing peer from WireGuard: {result.stderr}")
-                    return jsonify(error=f"Couldn't remove peer from WireGuard: {result.stderr}"), 500
+                    logging.error(f"error in removing peer from Wireguard: {result.stderr}")
+                    return jsonify(error=f"Couldn't remove peer from Wireguard: {result.stderr}"), 500
             except subprocess.CalledProcessError as e:
-                logging.error(f"error in removing peer from WireGuard: {e.stderr}")
-                return jsonify(error=f"Couldn't remove peer from WireGuard: {e.stderr}"), 500
+                logging.error(f"error in removing peer from Wireguard: {e.stderr}")
+                return jsonify(error=f"Couldn't remove peer from Wireguard: {e.stderr}"), 500
 
             peer_ip = peer.get("peer_ip")
             if peer_ip and not remove_blackhole_route(peer_ip):
@@ -3858,21 +4087,37 @@ def delete_peer():
                 with open(config_path, "w") as conf_file:
                     conf_file.writelines(new_lines)
 
-                logging.info(f"Updated WireGuard config file '{config_path}'.")
+                logging.info(f"Updated Wireguard config file '{config_path}'.")
             except Exception as e:
-                logging.error(f"error in updating WireGuard config file '{config_path}': {e}")
-                return jsonify(error="Couldn't update WireGuard config file."), 500
+                logging.error(f"error in updating Wireguard config file '{config_path}': {e}")
+                return jsonify(error="Couldn't update Wireguard config file."), 500
 
             peers = [p for p in peers if p["peer_name"] != peer_name]
-            save_peers_with_lock(config_file, peers)  
+            save_peers_with_lock(config_file, peers)
+
+        with short_links_lock:  
+            short_links = load_short_links()  
+
+            link_to_delete = None
+            for short_id, encrypted_link in short_links.items():
+                try:
+                    long_link = cipher.decrypt(encrypted_link.encode()).decode()
+                    if f"peer_name={peer_name}" in long_link:
+                        link_to_delete = short_id
+                        break
+                except Exception as e:
+                    logging.error(f"Error decrypting short link: {e}")
+                    continue
+
+            if link_to_delete:
+                del short_links[link_to_delete]  
+                save_short_links(short_links)  
+                logging.info(f"Deleted short link for peer '{peer_name}'.")
 
         return jsonify(success=True, message=f"Peer '{peer_name}' has been deleted dynamically.")
     except Exception as e:
         logging.error(f"error in deleting peer: {e}")
         return jsonify(error=f"error in deleting peer: {e}"), 500
-
-
-
 
 
 @app.route("/api/delete-all-configs", methods=["POST"])
