@@ -3962,8 +3962,17 @@ def obtain_peer_details_from_storage(peer_name, config_file, token):
 
         created_at_str = peer.get("created_at", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"))
         created_at = datetime.strptime(created_at_str, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+
+        expiry_months = peer.get("expiry_time", {}).get("months", 0)
         expiry_days = peer.get("expiry_time", {}).get("days", 0)
-        expiry = created_at + timedelta(days=expiry_days)
+        expiry_hours = peer.get("expiry_time", {}).get("hours", 0)
+        expiry_minutes = peer.get("expiry_time", {}).get("minutes", 0)
+
+        expiry = created_at + timedelta(
+            days=(expiry_months * 30) + expiry_days,  
+            hours=expiry_hours,
+            minutes=expiry_minutes
+        )
         now = datetime.now(timezone.utc)
 
         peer["expiry"] = expiry.strftime("%Y-%m-%d %H:%M:%S")
@@ -3973,7 +3982,7 @@ def obtain_peer_details_from_storage(peer_name, config_file, token):
             peer["expiry_human"] = "Expired"
         else:
             exp_days = time_diff.days
-            exp_hours = time_diff.seconds // 3600
+            exp_hours = (time_diff.seconds // 3600) % 24
             exp_minutes = (time_diff.seconds % 3600) // 60
             peer["expiry_human"] = f"{exp_days} روز، {exp_hours} ساعت، {exp_minutes} دقیقه باقی مانده"
 
@@ -3981,7 +3990,6 @@ def obtain_peer_details_from_storage(peer_name, config_file, token):
         days = total_minutes // (24 * 60)
         hours = (total_minutes % (24 * 60)) // 60
         minutes = total_minutes % 60
-
         peer["remaining_time_human"] = f"{days} روز، {hours} ساعت، {minutes} دقیقه"
 
         return {
@@ -3990,12 +3998,13 @@ def obtain_peer_details_from_storage(peer_name, config_file, token):
             "used_human": peer["used_human"],
             "remaining_human": peer["remaining_human"],
             "expiry_human": peer["expiry_human"],
-            "remaining_time": peer["remaining_time"], 
-            "remaining_time_human": peer["remaining_time_human"]  
+            "remaining_time": peer["remaining_time"],
+            "remaining_time_human": peer["remaining_time_human"]
         }
 
     except Exception as e:
         raise ValueError(f"error in obtaining peer details: {str(e)}")
+
 
 def get_public_ip():
     try:
