@@ -4747,6 +4747,18 @@ def handle_track_usage():
     return jsonify({"message": f"Countdown started for peer with IP {peer_ip}"})
 
 
+def create_shortlinks():
+
+    if not os.path.exists(SHORT_LINKS_FILE):
+        try:
+            with open(SHORT_LINKS_FILE, "w") as file:
+                json.dump({}, file) 
+            print(f"{SHORT_LINKS_FILE} created successfully.")
+        except Exception as e:
+            print(f"Error creating {SHORT_LINKS_FILE}: {str(e)}")
+    else:
+        print(f"{SHORT_LINKS_FILE} already exists.")
+
 jobstores = {
     'default': SQLAlchemyJobStore(url='sqlite:///jobs.sqlite') 
 }
@@ -4769,6 +4781,7 @@ scheduler = BackgroundScheduler(
 
 
 if __name__ == "__main__":
+    create_shortlinks()
     config = load_config()
     flask_port = config["flask"]["port"]
     use_tls = config["flask"]["tls"]
