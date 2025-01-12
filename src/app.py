@@ -4408,13 +4408,12 @@ def search_peers():
         return jsonify({"error": "An internal error occurred."}), 500
 
 
-
-
 @app.route("/api/peers", methods=["GET"])
 def obtain_peers():
     config_file = request.args.get("config", "wg0.conf")
     page = int(request.args.get("page", 1))  
     limit = int(request.args.get("limit", 10))  
+    fetch_all = request.args.get("fetch_all", "false").lower() == "true"  
 
     try:
         peers_file = obtain_peers_file(config_file)
@@ -4430,23 +4429,30 @@ def obtain_peers():
             peer["remaining_human"] = bytes_to_readable(peer.get("remaining", 0))
             peer["limit_human"] = bytes_to_readable(convert_to_bytes(peer["limit"]))
 
-        total_peers = len(filtered_peers)
-        start = (page - 1) * limit
-        end = start + limit
-        paginated_peers = filtered_peers[start:end]
+        if fetch_all:
+            response = {
+                "peers": filtered_peers,
+                "total_peers": len(filtered_peers),
+            }
+        else:
+            total_peers = len(filtered_peers)
+            start = (page - 1) * limit
+            end = start + limit
+            paginated_peers = filtered_peers[start:end]
 
-        total_pages = (total_peers + limit - 1) // limit
+            total_pages = (total_peers + limit - 1) // limit
 
-        response = {
-            "peers": paginated_peers,
-            "total_peers": total_peers,
-            "total_pages": total_pages,
-            "current_page": page,
-        }
+            response = {
+                "peers": paginated_peers,
+                "total_peers": total_peers,
+                "total_pages": total_pages,
+                "current_page": page,
+            }
 
         return jsonify(response)
     except Exception as e:
-        return jsonify(error=f"error in loading peers: {str(e)}"), 500
+        return jsonify(error=f"Error in loading peers: {str(e)}"), 500
+
 
 
 @app.route("/api/metrics", methods=["GET"])
@@ -4972,5 +4978,3 @@ if __name__ == "__main__":
         logging.info("Shutting down application.")
         if scheduler:
             scheduler.shutdown(wait=False)
-
-
