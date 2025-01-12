@@ -50,39 +50,54 @@ document.addEventListener("DOMContentLoaded", function () {
   return { days, hours, minutes };
 }
 
-function formatRemainingTime({ days, hours, minutes }) {
-  let formattedTime = "";
+let expiryTimeRemaining = 0;
 
-  if (days > 0) {
-    formattedTime += `${days} روز`;
-  } else {
-    formattedTime += "0 روز";
+  function formatRemainingTime(totalMinutes) {
+    const days = Math.floor(totalMinutes / (24 * 60));
+    const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+    const minutes = totalMinutes % 60;
+
+    return `${days} روز، ${hours} ساعت، ${minutes} دقیقه`;
   }
 
-  if (hours > 0) {
-    if (formattedTime) formattedTime += "، ";
-    formattedTime += `${hours} ساعت`;
-  } else {
-    if (formattedTime) formattedTime += "، ";
-    formattedTime += "0 ساعت";
-  }
+function updateProgressBars(data) {
+  const totalTimeMinutes = 30 * 24 * 60; // 30 days
+  const remainingTimeMinutes = data.remaining_time || 0;
+  const timeRatio = (remainingTimeMinutes / totalTimeMinutes) * 100;
+  expiryProgress.style.width = `${Math.min(100, timeRatio)}%`;
+  expiryProgress.style.backgroundColor = "#16a085";
 
-  if (minutes > 0) {
-    if (formattedTime) formattedTime += "، ";
-    formattedTime += `${minutes} دقیقه`;
-  } else {
-    if (formattedTime) formattedTime += "، ";
-    formattedTime += "0 دقیقه";
-  }
+  const remainingData = parseFloat(data.remaining_human || "0");
+  const totalData = parseFloat(data.limit_human || "0");
+  const dataRatio = (totalData > 0) ? (remainingData / totalData) * 100 : 100; 
+  remainingProgress.style.width = `${Math.min(100, dataRatio)}%`;
+  remainingProgress.style.backgroundColor = "#16a085";
 
-  return formattedTime;
+  if (dataRatio === 0) {
+    remainingProgress.style.backgroundColor = "#F44336"; 
+  }
+  if (timeRatio === 0) {
+    expiryProgress.style.backgroundColor = "#F44336"; 
+  }
 }
 
+function updateTimeRemaining() {
+    if (expiryTimeRemaining > 0) {
+      expiryTimeRemaining--;
+      expiryDateElem.textContent = formatRemainingTime(expiryTimeRemaining);
 
+      const totalMinutes = 30 * 24 * 60; 
+      const expiryRatio = (expiryTimeRemaining / totalMinutes) * 100;
+      expiryProgress.style.width = `${Math.min(100, expiryRatio)}%`;
+    } else {
+      expiryDateElem.textContent = "منقضی";
+      expiryProgress.style.width = "0%";
+    }
+  }
 function fetchPeerDetails() {
   const url = `/api/peer-detailz?peer_name=${encodeURIComponent(peerName)}`
-            + `&config_file=${encodeURIComponent(configFile)}`
-            + `&token=${encodeURIComponent(token)}`;
+    + `&config_file=${encodeURIComponent(configFile)}`
+    + `&token=${encodeURIComponent(token)}`;
 
   fetch(url)
     .then(response => response.json())
@@ -93,24 +108,9 @@ function fetchPeerDetails() {
       }
 
       peerNameElem.textContent = data.peer_name || "نامشخص";
-      dataLimitElem.textContent = formatHumanReadableSize(data.limit_human || "0 MiB");
-      remainingAmountLbl.textContent = formatHumanReadableSize(data.remaining_human || "0 MiB");
-
-      const { days, hours, minutes } = parseExpiryHuman(data.expiry_human || "");
-      expiryDateElem.textContent = formatRemainingTime({ days, hours, minutes });
-
-      const remainingMinutes = days * 24 * 60 + hours * 60 + minutes;
-      const totalMinutes = 30 * 24 * 60; 
-      const expiryRatio = (remainingMinutes / totalMinutes) * 100;
-      expiryProgress.style.width = `${Math.min(100, expiryRatio)}%`;
-
-      const remainingMatch = /([\d.]+)/.exec(data.remaining_human || "0");
-      const remainingVal = remainingMatch ? parseFloat(remainingMatch[1]) : 0;
-
-      const limitMatch = /([\d.]+)/.exec(data.limit_human || "0");
-      const numericLimit = limitMatch ? parseFloat(limitMatch[1]) : 1;
-      const remainingRatio = (numericLimit > 0) ? (remainingVal / numericLimit) * 100 : 0;
-      remainingProgress.style.width = `${Math.min(100, remainingRatio)}%`;
+      dataLimitElem.textContent = data.limit_human || "0 MiB";
+      remainingAmountLbl.textContent = data.remaining_human || "0 MiB";
+      expiryTimeRemaining = data.remaining_time || 0;
 
       if (data.status === "active") {
         clientStatusLabel.textContent = "فعال";
@@ -119,11 +119,15 @@ function fetchPeerDetails() {
         clientStatusLabel.textContent = "غیرفعال";
         clientStatusLabel.style.color = "#F44336";
       }
+
+      updateProgressBars(data);
+      updateTimeRemaining(); 
     })
     .catch(error => {
       console.error("error in fetching peer details:", error);
     });
 }
+
 
 
   refreshBtn.addEventListener("click", fetchPeerDetails);
