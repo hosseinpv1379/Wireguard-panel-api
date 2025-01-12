@@ -578,7 +578,7 @@ WantedBy=multi-user.target
     <summary style="font-size: 14px; padding: 5px;">نمایش template کاربر</summary>
     <p style="margin: 0; text-align: right;">
      <p align="right">
-      <img src="https://github.com/user-attachments/assets/ca460557-db1d-49f7-82e7-f8496819214b" alt="menu screen" style="max-width: 100px; height: auto;" />
+      <img src="https://github.com/user-attachments/assets/022e4cb5-2c66-41b0-bd3d-17f27047a3b1" alt="menu screen" style="max-width: 100px; height: auto;" />
     </p>
   </details>
 
