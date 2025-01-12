@@ -1529,46 +1529,61 @@ async def download_peerconfig_general(update: Update, context: CallbackContext):
     now_tehran = datetime.now(tehran_tz).date()
 
     current_jalali_date = jdate.fromgregorian(date=now_tehran)
-
     expiry_date_jalali = current_jalali_date + timedelta(days=expiry_days)
-
     expiry_date_jalali_str = f"{expiry_date_jalali.year}/{expiry_date_jalali.month:02}/{expiry_date_jalali.day:02}"
 
-    url = f"{API_BASE_URL}/api/download-peer-config?peerName={peer_name}&config={config_file}"
+    config_url = f"{API_BASE_URL}/api/download-peer-config?peerName={peer_name}&config={config_file}"
+    short_link_url = f"{API_BASE_URL}/api/get-peer-link?peerName={peer_name}&config={config_file}"
+
     async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers={"Authorization": f"Bearer {API_KEY}"}) as response:
-            if response.status == 200:
-                peer_config = await response.text()
+        try:
+            async with session.get(short_link_url, headers={"Authorization": f"Bearer {API_KEY}"}) as link_response:
+                short_link = "N/A"
+                if link_response.status == 200:
+                    link_data = await link_response.json()
+                    short_link = link_data.get("short_link", "N/A")
+                else:
+                    print(f"Couldn't retrieve short link. Status: {link_response.status}")
 
-                keyboard = [
-                    [
-                        InlineKeyboardButton("🔙 بازگشت به منو", callback_data="main_menu"),
-                        InlineKeyboardButton("📋 لیست کاربران", callback_data="peers_menu"),
+            async with session.get(config_url, headers={"Authorization": f"Bearer {API_KEY}"}) as config_response:
+                if config_response.status == 200:
+                    peer_config = await config_response.text()
+
+                    keyboard = [
+                        [
+                            InlineKeyboardButton("🔙 بازگشت به منو", callback_data="main_menu"),
+                            InlineKeyboardButton("📋 لیست کاربران", callback_data="peers_menu"),
+                        ]
                     ]
-                ]
-                reply_markup = InlineKeyboardMarkup(keyboard)
+                    reply_markup = InlineKeyboardMarkup(keyboard)
 
-                caption = (
-                    f"فایل تنظیمات برای `{peer_name}`\n\n"
-                    f"👤 *نام کاربری:* `{peer_name}`\n"
-                    f"⏳ *تاریخ انقضا:* `{expiry_days} روز`\n"
-                    f"📅 *تاریخ انقضا (شمسی):* `{expiry_date_jalali_str}`\n"
-                    f"📏 *میزان حجم:* `{data_limit}`\n\n"
-                    f"📄 *محتوای فایل تنظیمات:*\n"
-                    f"```\n{peer_config}\n```"
-                )
+                    caption = (
+                        f"فایل تنظیمات برای `{peer_name}`\n\n"
+                        f"👤 *نام کاربری:* `{peer_name}`\n"
+                        f"⏳ *تاریخ انقضا:* `{expiry_days} روز`\n"
+                        f"📅 *تاریخ انقضا (شمسی):* `{expiry_date_jalali_str}`\n"
+                        f"📏 *میزان حجم:* `{data_limit}`\n\n"
+                        f"🔗 * لینک کوتاه کانفیگ:*\n"
+                        f"[{short_link}]({short_link})\n\n"
+                        f"📄 *محتوای فایل تنظیمات:*\n"
+                        f"```\n{peer_config}\n```"
+                    )
 
-                await context.bot.send_document(
-                    chat_id=query.message.chat_id,
-                    document=BytesIO(peer_config.encode("utf-8")),
-                    filename=f"{peer_name}.conf",
-                    caption=caption,
-                    parse_mode="Markdown",
-                    reply_markup=reply_markup
-                )
-            else:
-                error = await response.json()
-                await query.message.reply_text(f"❌ خطا: {error.get('error', 'عدم توانایی در دریافت فایل تنظیمات')}")
+                    await context.bot.send_document(
+                        chat_id=query.message.chat_id,
+                        document=BytesIO(peer_config.encode("utf-8")),
+                        filename=f"{peer_name}.conf",
+                        caption=caption,
+                        parse_mode="Markdown",
+                        reply_markup=reply_markup
+                    )
+                else:
+                    error = await config_response.json()
+                    await query.message.reply_text(f"❌ خطا: {error.get('error', 'عدم توانایی در دریافت فایل تنظیمات')}")
+        except Exception as e:
+            await query.message.reply_text(f"❌ خطا: {str(e)}")
+
+
 
 
 async def generate_peerqr_general(update, context):
@@ -1584,43 +1599,57 @@ async def generate_peerqr_general(update, context):
 
     qr_url = f"{API_BASE_URL}/api/download-peer-qr?peerName={peer_name}&config={config_file}"
     config_url = f"{API_BASE_URL}/api/download-peer-config?peerName={peer_name}&config={config_file}"
+    short_link_url = f"{API_BASE_URL}/api/get-peer-link?peerName={peer_name}&config={config_file}"
 
     async with aiohttp.ClientSession() as session:
-        async with session.get(qr_url, headers={"Authorization": f"Bearer {API_KEY}"}) as qr_response:
-            if qr_response.status == 200:
-                qr_image = await qr_response.read()
-            else:
-                error = await qr_response.json()
-                await query.message.reply_text(f"❌ خطا در دریافت QR Code: {error.get('error', 'نامشخص')}")
-                return
+        try:
+            async with session.get(short_link_url, headers={"Authorization": f"Bearer {API_KEY}"}) as link_response:
+                short_link = "N/A"
+                if link_response.status == 200:
+                    link_data = await link_response.json()
+                    short_link = link_data.get("short_link", "N/A")
+                else:
+                    print(f"Couldn't retrieve short link. Status: {link_response.status}")
 
-        async with session.get(config_url, headers={"Authorization": f"Bearer {API_KEY}"}) as config_response:
-            if config_response.status == 200:
-                peer_config = await config_response.text()
-            else:
-                error = await config_response.json()
-                await query.message.reply_text(f"❌ خطا در دریافت تنظیمات: {error.get('error', 'نامشخص')}")
-                return
+            async with session.get(qr_url, headers={"Authorization": f"Bearer {API_KEY}"}) as qr_response:
+                if qr_response.status == 200:
+                    qr_image = await qr_response.read()
+                else:
+                    error = await qr_response.json()
+                    await query.message.reply_text(f"❌ خطا در دریافت QR Code: {error.get('error', 'نامشخص')}")
+                    return
 
-    keyboard = [
-        [
-            InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu"),
-            InlineKeyboardButton("📋 لیست کاربران", callback_data="peers_menu"),
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+            async with session.get(config_url, headers={"Authorization": f"Bearer {API_KEY}"}) as config_response:
+                if config_response.status == 200:
+                    peer_config = await config_response.text()
+                else:
+                    error = await config_response.json()
+                    await query.message.reply_text(f"❌ خطا در دریافت تنظیمات: {error.get('error', 'نامشخص')}")
+                    return
 
-    await context.bot.send_photo(
-        chat_id=query.message.chat_id,
-        photo=BytesIO(qr_image),
-        caption=(
-            f"📷 کد QR برای کاربر `{peer_name}`\n\n"
-            f"برای کپی کردن تنظیمات، از متن زیر استفاده کنید:\n"
-            f"```\n{peer_config}\n```"
-        ),
-        parse_mode="Markdown",
-        reply_markup=reply_markup
-    )
+            keyboard = [
+                [
+                    InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu"),
+                    InlineKeyboardButton("📋 لیست کاربران", callback_data="peers_menu"),
+                ]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            await context.bot.send_photo(
+                chat_id=query.message.chat_id,
+                photo=BytesIO(qr_image),
+                caption=(
+                    f"📷 کد QR برای کاربر `{peer_name}`\n\n"
+                    f"🔗 *لینک کوتاه کانفیگ:*\n"
+                    f"[{short_link}]({short_link})\n\n"
+                    f"برای کپی کردن تنظیمات، از متن زیر استفاده کنید:\n"
+                    f"```\n{peer_config}\n```"
+                ),
+                parse_mode="Markdown",
+                reply_markup=reply_markup
+            )
+        except Exception as e:
+            await query.message.reply_text(f"❌ خطا: {str(e)}")
 
 
 
@@ -1743,7 +1772,7 @@ async def download_peerconfig_create(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
 
-    peer_name = query.data.replace("download_create_", "")
+    peer_name = query.data.replace("download_create_", "").strip()
     selected_interface = context.user_data.get("selected_interface", "wg0") 
     config_file = f"{selected_interface}.conf"
 
@@ -1752,52 +1781,74 @@ async def download_peerconfig_create(update: Update, context: CallbackContext):
         return
 
     expiry_days = context.user_data.get("expiry_days", 1)
-    data_limit = context.user_data.get("data_limit", "N/A")
-
     tehran_tz = timezone("Asia/Tehran")
     now_tehran = datetime.now(tehran_tz).date()
 
     current_jalali_date = jdate.fromgregorian(date=now_tehran)
-
     expiry_date_jalali = current_jalali_date + timedelta(days=expiry_days)
-
     expiry_date_jalali_str = f"{expiry_date_jalali.year}/{expiry_date_jalali.month:02}/{expiry_date_jalali.day:02}"
 
-    url = f"{API_BASE_URL}/api/download-peer-config?peerName={peer_name}&config={config_file}"
+    config_url = f"{API_BASE_URL}/api/download-peer-config?peerName={peer_name}&config={config_file}"
+    peer_details_url = f"{API_BASE_URL}/api/get-peer-details?peerName={peer_name}&config={config_file}" 
+    short_link_url = f"{API_BASE_URL}/api/get-peer-link?peerName={peer_name}&config={config_file}"
+
     async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers={"Authorization": f"Bearer {API_KEY}"}) as response:
-            if response.status == 200:
-                peer_config = await response.text()
+        try:
+            async with session.get(peer_details_url, headers={"Authorization": f"Bearer {API_KEY}"}) as details_response:
+                if details_response.status == 200:
+                    details_data = await details_response.json()
+                    data_limit = details_data.get("limit", "N/A")  
+                else:
+                    print(f"Couldn't retrieve peer details. Status: {details_response.status}")
+                    data_limit = "N/A"
 
-                keyboard = [
-                    [
-                        InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu"),
-                        InlineKeyboardButton("📋 لیست کاربران", callback_data="peers_menu"),
+            async with session.get(short_link_url, headers={"Authorization": f"Bearer {API_KEY}"}) as link_response:
+                short_link = "N/A"
+                if link_response.status == 200:
+                    link_data = await link_response.json()
+                    short_link = link_data.get("short_link", "N/A")
+                else:
+                    print(f"Couldn't retrieve short link. Status: {link_response.status}")
+
+            async with session.get(config_url, headers={"Authorization": f"Bearer {API_KEY}"}) as config_response:
+                if config_response.status == 200:
+                    peer_config = await config_response.text()
+
+                    keyboard = [
+                        [
+                            InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu"),
+                            InlineKeyboardButton("📋 لیست کاربران", callback_data="peers_menu"),
+                        ]
                     ]
-                ]
-                reply_markup = InlineKeyboardMarkup(keyboard)
+                    reply_markup = InlineKeyboardMarkup(keyboard)
 
-                caption = (
-                    f"فایل تنظیمات برای `{peer_name}`\n\n"
-                    f"👤 *نام کاربر:* `{peer_name}`\n"
-                    f"⏳ *تاریخ انقضا:* `{expiry_days} روز`\n"
-                    f"📅 *تاریخ انقضا (شمسی):* `{expiry_date_jalali_str}`\n"
-                    f"📏 *محدودیت حجم:* `{data_limit}`\n\n"
-                    f"📄 *محتوای فایل تنظیمات:*\n"
-                    f"```\n{peer_config}\n```"
-                )
+                    caption = (
+                        f"فایل تنظیمات برای `{peer_name}`\n\n"
+                        f"👤 *نام کاربر:* `{peer_name}`\n"
+                        f"⏳ *تاریخ انقضا:* `{expiry_days} روز`\n"
+                        f"📅 *تاریخ انقضا (شمسی):* `{expiry_date_jalali_str}`\n"
+                        f"📏 *محدودیت حجم:* `{data_limit}`\n\n"
+                        f"🔗 *لینک کوتاه کانفیگ:*\n"
+                        f"[{short_link}]({short_link})\n\n"
+                        f"📄 *محتوای فایل تنظیمات:*\n"
+                        f"```\n{peer_config}\n```"
+                    )
 
-                await context.bot.send_document(
-                    chat_id=query.message.chat_id,
-                    document=BytesIO(peer_config.encode("utf-8")),
-                    filename=f"{peer_name}.conf",
-                    caption=caption,
-                    parse_mode="Markdown",
-                    reply_markup=reply_markup
-                )
-            else:
-                error = await response.json()
-                await query.message.reply_text(f"❌ خطا: {error.get('error', 'دریافت فایل تنظیمات امکان‌پذیر نیست')}")
+                    await context.bot.send_document(
+                        chat_id=query.message.chat_id,
+                        document=BytesIO(peer_config.encode("utf-8")),
+                        filename=f"{peer_name}.conf",
+                        caption=caption,
+                        parse_mode="Markdown",
+                        reply_markup=reply_markup
+                    )
+                else:
+                    error = await config_response.json()
+                    await query.message.reply_text(f"❌ خطا: {error.get('error', 'دریافت فایل تنظیمات امکان‌پذیر نیست')}")
+        except Exception as e:
+            await query.message.reply_text(f"❌ خطا: {str(e)}")
+
+
 
 async def generate_peerqr_create(update, context):
     query = update.callback_query
@@ -1814,43 +1865,58 @@ async def generate_peerqr_create(update, context):
 
     qr_url = f"{API_BASE_URL}/api/download-peer-qr?peerName={peer_name}&config={config_file}"
     config_url = f"{API_BASE_URL}/api/download-peer-config?peerName={peer_name}&config={config_file}"
+    short_link_url = f"{API_BASE_URL}/api/get-peer-link?peerName={peer_name}&config={config_file}"
 
     async with aiohttp.ClientSession() as session:
-        async with session.get(qr_url, headers={"Authorization": f"Bearer {API_KEY}"}) as qr_response:
-            if qr_response.status == 200:
-                qr_image = await qr_response.read()
-            else:
-                error = await qr_response.json()
-                await query.message.reply_text(f"❌ خطا در دریافت QR Code: {error.get('error', 'نامشخص')}")
-                return
+        try:
+            async with session.get(short_link_url, headers={"Authorization": f"Bearer {API_KEY}"}) as link_response:
+                short_link = "N/A"
+                if link_response.status == 200:
+                    link_data = await link_response.json()
+                    short_link = link_data.get("short_link", "N/A")
+                else:
+                    print(f"Couldn't retrieve short link. Status: {link_response.status}")
 
-        async with session.get(config_url, headers={"Authorization": f"Bearer {API_KEY}"}) as config_response:
-            if config_response.status == 200:
-                peer_config = await config_response.text()
-            else:
-                error = await config_response.json()
-                await query.message.reply_text(f"❌ خطا در دریافت تنظیمات: {error.get('error', 'نامشخص')}")
-                return
+            async with session.get(qr_url, headers={"Authorization": f"Bearer {API_KEY}"}) as qr_response:
+                if qr_response.status == 200:
+                    qr_image = await qr_response.read()
+                else:
+                    error = await qr_response.json()
+                    await query.message.reply_text(f"❌ خطا در دریافت QR Code: {error.get('error', 'نامشخص')}")
+                    return
 
-    keyboard = [
-        [
-            InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu"),
-            InlineKeyboardButton("📋 لیست کاربران", callback_data="peers_menu"),
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+            async with session.get(config_url, headers={"Authorization": f"Bearer {API_KEY}"}) as config_response:
+                if config_response.status == 200:
+                    peer_config = await config_response.text()
+                else:
+                    error = await config_response.json()
+                    await query.message.reply_text(f"❌ خطا در دریافت تنظیمات: {error.get('error', 'نامشخص')}")
+                    return
 
-    await context.bot.send_photo(
-        chat_id=query.message.chat_id,
-        photo=BytesIO(qr_image),
-        caption=(
-            f"📷 کد QR برای کاربر `{peer_name}`\n\n"
-            f"برای کپی کردن تنظیمات، از متن زیر استفاده کنید:\n"
-            f"```\n{peer_config}\n```"
-        ),
-        parse_mode="Markdown",
-        reply_markup=reply_markup
-    )
+            keyboard = [
+                [
+                    InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu"),
+                    InlineKeyboardButton("📋 لیست کاربران", callback_data="peers_menu"),
+                ]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            await context.bot.send_photo(
+                chat_id=query.message.chat_id,
+                photo=BytesIO(qr_image),
+                caption=(
+                    f"📷 کد QR برای کاربر `{peer_name}`\n\n"
+                    f"🔗 *لینک کوتاه کانفیگ:*\n"
+                    f"[{short_link}]({short_link})\n\n"
+                    f"برای کپی کردن تنظیمات، از متن زیر استفاده کنید:\n"
+                    f"```\n{peer_config}\n```"
+                ),
+                parse_mode="Markdown",
+                reply_markup=reply_markup
+            )
+        except Exception as e:
+            await query.message.reply_text(f"❌ خطا: {str(e)}")
+
 
 
 async def init_peer_create(update: Update, context: CallbackContext):
