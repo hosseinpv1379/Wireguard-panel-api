@@ -1736,13 +1736,14 @@ def load_peers_from_json(config_name: str):
             with open(file_path, "r") as f:
                 peers = json.load(f)
 
-            fields_to_remove = ["blocked", "reset"]
+            fields_to_remove = ["blocked", "reset", "created_at"]
             fields_to_add = {
                 "last_received_bytes": 0,
                 "last_sent_bytes": 0,
             }
 
-            updated = False
+            updated = False  
+
             for peer in peers:
                 for field in fields_to_remove:
                     if field in peer:
@@ -1759,6 +1760,7 @@ def load_peers_from_json(config_name: str):
                 print(f"Updated peers in {file_path} (removed fields and added missing fields).")
 
             return peers
+
         except json.JSONDecodeError as e:
             print(f"Error decoding JSON for {file_path}: {e}. Attempting recovery.")
             return recover_from_backup(config_name)
@@ -2204,11 +2206,12 @@ def delete_template():
         return jsonify({"error": f"Couldn't delete file: {str(e)}"}), 500
 
 
-@app.route('/api/peer-details', methods=['GET'])
-def obtain_peer_details():
+@app.route('/api/bot-peer-details', methods=['GET'])
+def get_peer_details_for_bot():
 
     peer_name = request.args.get('peerName')
-    config_name = request.args.get('configName') 
+    config_name = request.args.get('configName')
+
     if not peer_name:
         return jsonify({"error": "Peer name is required"}), 400
 
@@ -2226,19 +2229,18 @@ def obtain_peer_details():
 
         peer_ip = peer.get('peer_ip', None)
         if not peer_ip:
-            return jsonify({"error": "Wrong or missing peer IP"}), 400
+            return jsonify({"error": "Invalid or missing peer IP"}), 400
 
         qr_code = (
             f"[Interface]\n"
             f"PrivateKey = {peer.get('private_key', 'YOUR_PRIVATE_KEY')}\n"
-            f"Address = {peer_ip}/32\n" 
+            f"Address = {peer_ip}/32\n"
             f"DNS = {peer.get('dns', '1.1.1.1')}\n\n"
             f"[Peer]\n"
             f"PublicKey = {peer.get('public_key', 'YOUR_PUBLIC_KEY')}\n"
             f"AllowedIPs = 0.0.0.0/0, ::/0\n"
             f"PersistentKeepalive = {peer.get('persistent_keepalive', 25)}"
         )
-        peer["qr_code"] = qr_code
 
         created_at_str = peer.get("created_at", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"))
         created_at = datetime.strptime(created_at_str, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
@@ -2246,13 +2248,29 @@ def obtain_peer_details():
         expiry = created_at + timedelta(days=expiry_days)
         now = datetime.now(timezone.utc)
 
-        peer["expiry"] = expiry.strftime("%Y-%m-%d %H:%M:%S")
-        peer["expiry_human"] = f"{(expiry - now).days} days remaining"
+        expiry_human = (
+            f"{(expiry - now).days} days remaining" if (expiry - now).total_seconds() > 0 else "Expired"
+        )
 
-        return jsonify(peer), 200
+        peer_details = {
+            "peer_name": peer_name,
+            "peer_ip": peer_ip,
+            "qr_code": qr_code,
+            "dns": peer.get('dns', '1.1.1.1'),
+            "limit": peer.get('limit', 'N/A'),
+            "used": peer.get('used', 0),
+            "remaining": peer.get('remaining', 0),
+            "created_at": created_at_str,
+            "expiry": expiry.strftime("%Y-%m-%d %H:%M:%S"),
+            "expiry_human": expiry_human
+        }
+
+        return jsonify(peer_details), 200
+
     except Exception as e:
-        app.logger.error(f"error in fetching peer details: {str(e)}")
+        app.logger.error(f"Error in fetching peer details for bot: {str(e)}")
         return jsonify({"error": "Couldn't fetch peer details"}), 500
+
 
 
 
@@ -3785,8 +3803,7 @@ def create_peer():
                 "mtu": mtu,
                 "config": config_file,
                 "last_received_bytes": 0,
-                "last_sent_bytes": 0,
-                "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
+                "last_sent_bytes": 0
             }
 
             peers.append(peer)
@@ -3812,6 +3829,8 @@ def create_peer():
             with open(config_path, "a") as conf:
                 conf.write(peer_config)
 
+        short_links = load_short_links()
+
         long_interactive_link = url_for(
             'peer_details',
             peer_name=peer['peer_name'],
@@ -3820,9 +3839,10 @@ def create_peer():
             _external=True
         )
         encrypted_link = cipher.encrypt(long_interactive_link.encode())
-        short_id = secrets.token_urlsafe(8)  
-        short_links[short_id] = encrypted_link.decode()
-        save_short_links(short_links)
+        short_id = secrets.token_urlsafe(8)
+        if short_id not in short_links:  
+            short_links[short_id] = encrypted_link.decode()
+            save_short_links(short_links)
 
         short_interactive_link = url_for('short_redirect', short_id=short_id, _external=True)
 
@@ -3837,6 +3857,7 @@ def create_peer():
     except Exception as e:
         print(f"Error: {e}")
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+
 
 @app.route("/api/get-peer-link", methods=["GET"])
 def get_peer_short_link():
