@@ -131,6 +131,7 @@ body {
 
 .server-location {
     font-size: 1rem;
+    margin-right: 50px;
     color: #ccdce3;
     display: flex;
     align-items: center;
