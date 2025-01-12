@@ -1789,7 +1789,7 @@ async def download_peerconfig_create(update: Update, context: CallbackContext):
     expiry_date_jalali_str = f"{expiry_date_jalali.year}/{expiry_date_jalali.month:02}/{expiry_date_jalali.day:02}"
 
     config_url = f"{API_BASE_URL}/api/download-peer-config?peerName={peer_name}&config={config_file}"
-    peer_details_url = f"{API_BASE_URL}/api/get-peer-details?peerName={peer_name}&config={config_file}" 
+    peer_details_url = f"{API_BASE_URL}/api/bot-peer-details?peerName={peer_name}&config={config_file}" 
     short_link_url = f"{API_BASE_URL}/api/get-peer-link?peerName={peer_name}&config={config_file}"
 
     async with aiohttp.ClientSession() as session:
