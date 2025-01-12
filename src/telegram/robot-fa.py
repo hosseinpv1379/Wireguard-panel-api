@@ -2844,7 +2844,7 @@ async def obtain_peer_status(update: Update, context: CallbackContext):
         return INPUT_PEER_NAME_STATUS
 
     try:
-        response = await api_stuff(f"api/peers?config={selected_interface}&page=1&limit=50")
+        response = await api_stuff(f"api/peers?config={selected_interface}&fetch_all=true")
 
         if "error" in response:
             await update.message.reply_text(f"❌ خطا در دریافت کاربران: {response['error']}")
@@ -2898,6 +2898,7 @@ async def obtain_peer_status(update: Update, context: CallbackContext):
         print(f"خطا در وضعیت کاربر: {e}")
         await update.message.reply_text("❌ خطایی در دریافت وضعیت کاربر رخ داد.")
         return INPUT_PEER_NAME_STATUS
+
 
 
 async def mnu_back(update: Update, context: CallbackContext):
