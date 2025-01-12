@@ -2782,14 +2782,16 @@ async def obtain_peer_status(update: Update, context: CallbackContext):
         return INPUT_PEER_NAME_STATUS
 
     try:
-        response = await api_stuff(f"api/peers?config={selected_interface}&page=1&limit=50")
+        # Fetch all peers for the selected interface
+        response = await api_stuff(f"api/peers?config={selected_interface}&fetch_all=true")
 
         if "error" in response:
-            await update.message.reply_text(f"❌ Error fetching peers: {response['error']}")
+            await update.message.reply_text(f"❌ Error retrieving peers: {response['error']}")
             return INPUT_PEER_NAME_STATUS
 
         peers = response.get("peers", [])
 
+        # Match the peer name (case-insensitive)
         matched_peers = [
             peer for peer in peers if peer_name.lower() == peer.get("peer_name", "").lower()
         ]
@@ -2810,15 +2812,15 @@ async def obtain_peer_status(update: Update, context: CallbackContext):
                 remaining_human = "Expired"
 
             peer_details = (
-                f"🎛 **Peer Details**\n\n"
+                f"🎛 **Peer Information**\n\n"
                 f"📛 **Peer Name:** `{peer['peer_name']}`\n"
                 f"🌐 **Peer IP:** `{peer['peer_ip']}`\n"
                 f"🔑 **Public Key:** `{peer['public_key']}`\n"
                 f"📊 **Data Limit:** `{peer['limit']}`\n"
                 f"📡 **Remaining Data:** `{peer['remaining_human']}`\n"
-                f"🕒 **Expiry Time:** {peer['expiry_time']['days']} days, "
+                f"🕒 **Expiration Time:** {peer['expiry_time']['days']} days, "
                 f"{peer['expiry_time']['hours']} hours, {peer['expiry_time']['minutes']} minutes\n"
-                f"⏳ **Time Remaining:** {remaining_human}\n"
+                f"⏳ **Remaining Time:** {remaining_human}\n"
                 f"⚡ **Status:** {'🟢 Active' if not peer['expiry_blocked'] else '🔴 Blocked'}\n"
             )
             messages.append(peer_details)
@@ -2826,17 +2828,16 @@ async def obtain_peer_status(update: Update, context: CallbackContext):
         for msg in messages:
             await update.message.reply_text(msg, parse_mode="Markdown")
 
-        keyboard = [[InlineKeyboardButton("🔙 Back to Peers Menu", callback_data="peers_menu")]]
+        keyboard = [[InlineKeyboardButton("🔙 Back to User Menu", callback_data="peers_menu")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text("Returning to the peers menu:", reply_markup=reply_markup)
+        await update.message.reply_text("Returning to user menu:", reply_markup=reply_markup)
 
         return ConversationHandler.END
 
     except Exception as e:
-        print(f"error in fetching peer status: {e}")
-        await update.message.reply_text("❌ error fetching the peer status.")
+        print(f"Error in obtaining peer status: {e}")
+        await update.message.reply_text("❌ error occurred while retrieving peer status.")
         return INPUT_PEER_NAME_STATUS
-
 
 
 async def mnu_back(update: Update, context: CallbackContext):
