@@ -3969,7 +3969,7 @@ def obtain_peer_details_from_storage(peer_name, config_file, token):
         expiry_minutes = peer.get("expiry_time", {}).get("minutes", 0)
 
         expiry = created_at + timedelta(
-            days=(expiry_months * 30) + expiry_days,  
+            days=(expiry_months * 30) + expiry_days,
             hours=expiry_hours,
             minutes=expiry_minutes
         )
@@ -3992,6 +3992,9 @@ def obtain_peer_details_from_storage(peer_name, config_file, token):
         minutes = total_minutes % 60
         peer["remaining_time_human"] = f"{days} روز، {hours} ساعت، {minutes} دقیقه"
 
+        is_active = not (peer.get("monitor_blocked", False) or peer.get("expiry_blocked", False))
+        peer["status"] = "active" if is_active else "inactive"
+
         return {
             "peer_name": peer["peer_name"],
             "limit_human": peer["limit_human"],
@@ -3999,11 +4002,13 @@ def obtain_peer_details_from_storage(peer_name, config_file, token):
             "remaining_human": peer["remaining_human"],
             "expiry_human": peer["expiry_human"],
             "remaining_time": peer["remaining_time"],
-            "remaining_time_human": peer["remaining_time_human"]
+            "remaining_time_human": peer["remaining_time_human"],
+            "status": peer["status"]  
         }
 
     except Exception as e:
         raise ValueError(f"error in obtaining peer details: {str(e)}")
+
 
 
 def get_public_ip():
@@ -4369,7 +4374,7 @@ def search_peers():
                     app.logger.error(f"JSON in {filepath} is invalid: {e}")
                     continue
                 except Exception as e:
-                    app.logger.error(f"error in reading file {filepath}: {e}")
+                    app.logger.error(f"Error reading file {filepath}: {e}")
                     continue
 
         filtered_peers = []
@@ -4386,16 +4391,16 @@ def search_peers():
 
             data_limit = parse_limit_to_bytes(peer.get('limit', ""))
             used_data = peer.get('used', 0)
-
             if data_limit is not None:
                 remaining_data = peer.get('remaining', max(0, data_limit - used_data))
                 peer['remaining_human'] = format_size(remaining_data)
             else:
-                peer['remaining_human'] = "نامحدود"
+                peer['remaining_human'] = "Unlimited"
 
             peer['used_human'] = format_size(used_data)
-            peer['limit_human'] = format_size(data_limit) if data_limit else "نامحدود"
+            peer['limit_human'] = format_size(data_limit) if data_limit else "Unlimited"
 
+            peer['status'] = 'active' if not is_banned else 'inactive'
             filtered_peers.append(peer)
 
         return jsonify({
@@ -4404,8 +4409,9 @@ def search_peers():
         })
 
     except Exception as e:
-        app.logger.error(f"error in search-peers: {e}")
+        app.logger.error(f"Error in search-peers: {e}")
         return jsonify({"error": "An internal error occurred."}), 500
+
 
 
 @app.route("/api/peers", methods=["GET"])
@@ -4978,3 +4984,5 @@ if __name__ == "__main__":
         logging.info("Shutting down application.")
         if scheduler:
             scheduler.shutdown(wait=False)
+
+
