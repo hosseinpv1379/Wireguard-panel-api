@@ -1728,6 +1728,8 @@ def recover_from_backup(config_name: str):
         print(f"Couldn't recover from backup {latest_backup}: {e}")
         return []
 
+
+        
 def load_peers_from_json(config_name: str):
 
     file_path = obtain_peers_file(config_name)
@@ -1736,7 +1738,7 @@ def load_peers_from_json(config_name: str):
             with open(file_path, "r") as f:
                 peers = json.load(f)
 
-            fields_to_remove = ["blocked", "reset", "created_at"]
+            fields_to_remove = ["blocked", "reset"]
             fields_to_add = {
                 "last_received_bytes": 0,
                 "last_sent_bytes": 0,
@@ -1942,6 +1944,8 @@ def reset_traffic():
 
             peer["used"] = 0
             peer["remaining"] = convert_to_bytes(peer["limit"])
+            peer["last_received_bytes"] = 0
+            peer["last_sent_bytes"] = 0
             
             save_peers_with_lock(config_name, peers)
 
@@ -1950,8 +1954,9 @@ def reset_traffic():
             message=f"The traffic statistics for the user '{peer_name}' in the file {config_name} have been reset."
         )
     except Exception as e:
-        print(f"error in resetting traffic: {e}")
-        return jsonify(error=f"error in resetting traffic: {e}"), 500
+        print(f"Error in resetting traffic: {e}")
+        return jsonify(error=f"Error in resetting traffic: {e}"), 500
+
 
 @app.route("/api/reset-expiry", methods=["POST"])
 def reset_expiry():
@@ -3048,6 +3053,12 @@ def toggle_peer():
             if not blocked: 
                 print(f"Enabling peer '{peer_name}'. Resetting values.")
 
+                interface = peer["config"].split(".")[0]
+                public_key = peer["public_key"]
+                peer_ip = peer.get("peer_ip")
+
+                reset_peer_traffic(interface, public_key, peer_ip)
+
                 peer["remaining"] = convert_to_bytes(peer.get("limit", "0MiB"))
                 peer["remaining_time"] = calculate_expiry_duration(peer.get("expiry_time", {}))
                 peer["used"] = 0
@@ -3063,7 +3074,7 @@ def toggle_peer():
                 print(f"Disabling peer '{peer_name}'. Blocking IP.")
                 success = add_blackhole_route(peer["peer_ip"])
                 if not success:
-                    print(f"Failed to add blackhole route for {peer['peer_ip']}")
+                    print(f"Couldn't add blackhole route for {peer['peer_ip']}")
                     return jsonify(error=f"Couldn't block peer {peer_name} in {config_name}."), 500
 
             save_peers_with_lock(config_name, peers)
@@ -3076,6 +3087,7 @@ def toggle_peer():
     except Exception as e:
         print(f"error in toggling peer: {e}")
         return jsonify(error="Couldn't toggle peer state."), 500
+
 
 
 
