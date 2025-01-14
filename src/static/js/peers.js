@@ -79,8 +79,10 @@ document.addEventListener("DOMContentLoaded", () => {
     let search = ""; 
     let filter = ""; 
 
-    const fetchPeers = async (config, search = "", filter = "", page = currentPage) => {
+    const fetchPeers = async (config, search = "", filter = "", page = currentPage, isPagination = false) => {
     try {
+        if (isPagination) showLoadingSpinner();
+
         const response = await fetch(
             `/api/peers?config=${config}&search=${encodeURIComponent(search)}&filter=${encodeURIComponent(filter)}&page=${page}&limit=${limit}`
         );
@@ -88,9 +90,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (response.ok) {
             peersData = data.peers || [];
+            totalPages = data.total_pages || 0;
+
+            if (page > totalPages) {
+                page = 1;  
+            }
+
+            if (page <= totalPages && page !== currentPage) {
+                currentPage = page;
+            }
+
             renderPeers(peersData, config);
-            renderPagination(page, data.total_pages, config, search, filter); 
-            currentPage = page; 
+            renderPagination(currentPage, totalPages, config, search, filter);
         } else {
             console.error(data.error || "Couldn't fetch peers.");
             showErrorMessage("No peers found.");
@@ -98,8 +109,11 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (error) {
         console.error("Error in fetching peers:", error);
         showErrorMessage("Unable to fetch peers. Check your connection.");
+    } finally {
+        if (isPagination) hideLoadingSpinner();  
     }
 };
+
 
 const renderPeerBox = (peer) => {
         const peerBox = document.createElement("div");
@@ -438,15 +452,30 @@ const renderPagination = (currentPage, totalPages, config, search = "", filter =
 
     paginationContainer.innerHTML = ""; 
 
+    if (totalPages === 0) {
+        return;
+    }
+
+    const validPage = currentPage > totalPages ? totalPages : currentPage;
+
     for (let i = 1; i <= totalPages; i++) {
         const pageButton = document.createElement("button");
         pageButton.textContent = i;
-        pageButton.className = i === currentPage ? "active" : "";
-        pageButton.addEventListener("click", () => fetchPeers(config, search, filter, i)); 
+        pageButton.className = i === validPage ? "active" : "";
+        pageButton.addEventListener("click", () => fetchPeers(config, search, filter, i, true)); 
         paginationContainer.appendChild(pageButton);
     }
 };
 
+const showLoadingSpinner = () => {
+    const spinner = document.getElementById("loadingSpinner");
+    if (spinner) spinner.style.display = "flex";  
+};
+
+const hideLoadingSpinner = () => {
+    const spinner = document.getElementById("loadingSpinner");
+    if (spinner) spinner.style.display = "none"; 
+};
 
 let isFiltering = false;
 let isSearching = false;
@@ -516,11 +545,39 @@ function applyFilter() {
 
 window.applyFilter = applyFilter;
 
-    document.getElementById("configSelect").addEventListener("change", (event) => {
+    document.getElementById("configSelect").addEventListener("change", async (event) => {
     currentConfig = event.target.value;
-    currentPage = 1;  
-    fetchPeers(currentConfig);  
+
+    const response = await fetch(`/api/peers?config=${currentConfig}&page=1&limit=${limit}`);
+    const data = await response.json();
+
+    if (data.total_pages < currentPage) {
+        currentPage = 1;
+    }
+
+    showLoadingSpinner();
+
+    try {
+        const fetchResponse = await fetch(`/api/peers?config=${currentConfig}&page=${currentPage}&limit=${limit}`);
+        const fetchData = await fetchResponse.json();
+
+        if (fetchResponse.ok) {
+            peersData = fetchData.peers || [];
+            totalPages = fetchData.total_pages || 0;
+
+            renderPeers(peersData, currentConfig);
+            renderPagination(currentPage, totalPages, currentConfig);
+        } else {
+            showErrorMessage(fetchData.error || "Couldn't fetch peers.");
+        }
+    } catch (error) {
+        console.error("error in while fetching peers:", error);
+        showErrorMessage("Couldn't fetch peers. Check your connection.");
+    } finally {
+        hideLoadingSpinner();
+    }
 });
+
 
     const createActionButton = (iconClass, title, onClick) => {
         const btn = document.createElement("button");
