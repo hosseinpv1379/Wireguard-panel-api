@@ -413,24 +413,46 @@ let currentPage = 1;
 let totalPages = 0; 
 const limit = 10; 
 
-const fetchPeers = async (config, page = currentPage) => {
+const fetchPeers = async (config, page = currentPage, isPagination = false) => {
     try {
-        const response = await fetch(`/api/peers?config=${config}&page=${page}&limit=${limit}`);
+        if (isPagination) showLoadingSpinner(); 
+
+        const response = await fetch(
+            `/api/peers?config=${config}&page=${page}&limit=${limit}`
+        );
         const data = await response.json();
 
         if (response.ok) {
             peersData = data.peers || [];
-            totalPages = data.total_pages || 0; 
+            totalPages = data.total_pages || 0;
+
+            currentPage = page;
+
             renderPeers(peersData, config);
-            renderPagination(data.current_page, totalPages, config); 
-            currentPage = data.current_page; 
+            renderPagination(currentPage, totalPages, config);
         } else {
-            console.error(data.error || "Fetching peers failed.");
+            console.error(data.error || "دریافت کاربران ناموفق بود.");
+            showAlert(data.error || "دریافت کاربران ناموفق بود.");
         }
     } catch (error) {
-        console.error("Fetching peers error:", error);
+        console.error("خطا در دریافت کاربران:", error);
+        showAlert("خطا در دریافت کاربران. لطفا دوباره تلاش کنید.");
+    } finally {
+        if (isPagination) hideLoadingSpinner();
     }
 };
+
+
+const showLoadingSpinner = () => {
+    const spinner = document.getElementById("loadingSpinner");
+    if (spinner) spinner.style.display = "flex";
+};
+
+const hideLoadingSpinner = () => {
+    const spinner = document.getElementById("loadingSpinner");
+    if (spinner) spinner.style.display = "none";
+};
+
 
 const renderPeers = (peers, config) => {
     const peerContainer = document.getElementById("peerContainer");
@@ -596,13 +618,13 @@ resetBtn.onclick = async () => {
                     console.error("resetting expiry time error:", error);
                 }
             };
-
             const deleteBtn = document.createElement("button");
 deleteBtn.title = "Delete Peer";
 deleteBtn.innerHTML = `<i class="fas fa-trash-alt"></i>`;
-
+            deleteBtn.title = "حذف کاربر";
+deleteBtn.innerHTML = `<i class="fas fa-trash-alt"></i>`;
 deleteBtn.onclick = async () => {
-    showConfirm(`آیا از پاک کردن ${peer.peer_name} اطمینان دارید ؟`, async (confirmed) => {
+    showConfirm(`آیا از حذف کاربر ${peer.peer_name} اطمینان دارید؟`, async (confirmed) => {
         if (confirmed) {
             try {
                 const configFile = peer.config || "wg0.conf";
@@ -612,16 +634,26 @@ deleteBtn.onclick = async () => {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         peerName: peer.peer_name,
-                        configFile: configFile,  
+                        configFile: configFile,
+                        peerIp: peer.peer_ip, 
                     }),
                 });
 
                 const result = await response.json();
                 if (response.ok) {
                     showAlert(result.message || "کاربر با موفقیت حذف شد");
-                    fetchPeers(config);  
+
+                    peersData = peersData.filter(
+                        (p) => !(p.peer_name === peer.peer_name && p.peer_ip === peer.peer_ip)
+                    );
+
+                    if (peersData.length === 0 && currentPage > 1) {
+                        currentPage -= 1;
+                    }
+
+                    fetchPeers(configFile, currentPage, false);
                 } else {
-                    showAlert(result.error || "خطایی در پاک کردن کاربر رخ داده است");
+                    showAlert(result.error || "خطا در حذف کاربر.");
                 }
             } catch (error) {
                 console.error("خطا در حذف کاربر:", error);
@@ -629,6 +661,8 @@ deleteBtn.onclick = async () => {
         }
     });
 };
+
+
 
 function applyFilter() {
     const filterValue = document.getElementById("filterSelect").value;
@@ -679,47 +713,55 @@ window.applyFilter = applyFilter;
 
 const renderPagination = (currentPage, totalPages, config) => {
     const paginationContainer = document.getElementById("paginationContainer");
-    paginationContainer.innerHTML = ""; 
+    paginationContainer.innerHTML = "";
+
+    if (totalPages === 0) {
+        return;
+    }
 
     for (let i = 1; i <= totalPages; i++) {
         const pageButton = document.createElement("button");
         pageButton.textContent = i;
         pageButton.className = i === currentPage ? "active" : "";
-        pageButton.addEventListener("click", () => fetchPeers(config, i));
+        pageButton.addEventListener("click", () => {
+            if (currentPage !== i) {
+                fetchPeers(config, i, true); 
+            }
+        });
         paginationContainer.appendChild(pageButton);
     }
 };
 
 
-let selectedPeerForEdit = null; 
+let selectedPeerForEdit = null;
 
 function openEditPeerModal(peer) {
     selectedPeerForEdit = peer;
 
-    const limitValue = parseFloat(peer.limit) || 0; 
-    const limitUnit = peer.limit.includes("GiB") ? "GB" : "MB"; 
-    
+    const limitValue = parseFloat(peer.limit) || 0;
+    const limitUnit = peer.limit.includes("GiB") ? "GB" : "MB";
+
     document.getElementById("editDataLimit").value = limitValue;
     document.getElementById("editDataLimitUnit").value = limitUnit;
     document.getElementById("editDns").value = peer.dns || "";
-    document.getElementById("editExpiryDays").value = peer.expiry_time.days || 0;
-    document.getElementById("editExpiryMonths").value = peer.expiry_time.months || 0;
-    document.getElementById("editExpiryHours").value = peer.expiry_time.hours || 0;
-    document.getElementById("editExpiryMinutes").value = peer.expiry_time.minutes || 0;
+    document.getElementById("editExpiryDays").value = peer.expiry_time?.days || 0;
+    document.getElementById("editExpiryMonths").value = peer.expiry_time?.months || 0;
+    document.getElementById("editExpiryHours").value = peer.expiry_time?.hours || 0;
+    document.getElementById("editExpiryMinutes").value = peer.expiry_time?.minutes || 0;
     document.getElementById("editPeerIp").value = peer.peer_ip;
     document.getElementById("editPeerModal").style.display = "flex";
 }
 
 document.getElementById("closeEditModal").addEventListener("click", () => {
     document.getElementById("editPeerModal").style.display = "none";
-    selectedPeerForEdit = null; 
+    selectedPeerForEdit = null;
 });
 
 document.getElementById("editPeerForm").addEventListener("submit", async (event) => {
     event.preventDefault();
 
     if (!selectedPeerForEdit) {
-        showAlert("No peer selected for editing.");
+        showAlert("هیچ کاربری برای ویرایش انتخاب نشده است");
         return;
     }
 
@@ -731,9 +773,9 @@ document.getElementById("editPeerForm").addEventListener("submit", async (event)
     const expiryMonths = parseInt(document.getElementById("editExpiryMonths").value || 0);
     const expiryHours = parseInt(document.getElementById("editExpiryHours").value || 0);
     const expiryMinutes = parseInt(document.getElementById("editExpiryMinutes").value || 0);
-    const configFile = configSelect.value; 
+    const configFile = configSelect.value;
 
-    const payload = { 
+    const payload = {
         peerName: selectedPeerForEdit.peer_name,
         configFile,
         dataLimit: dataLimit ? formattedLimit : null,
@@ -753,18 +795,28 @@ document.getElementById("editPeerForm").addEventListener("submit", async (event)
 
         const data = await response.json();
         if (response.ok) {
-            showAlert(data.message || "Peer updated successfully.");
-            document.getElementById("editPeerModal").style.display = "none"; 
-            fetchPeers(configFile); 
-            selectedPeerForEdit = null; 
+            showAlert(data.message || "ویرایش کاربر با موفقیت انجام شد");
+            document.getElementById("editPeerModal").style.display = "none";
+
+            const index = peersData.findIndex(
+                (p) => p.peer_name === selectedPeerForEdit.peer_name && p.peer_ip === selectedPeerForEdit.peer_ip
+            );
+
+            if (index !== -1) {
+                peersData[index] = { ...peersData[index], ...data.updatedPeer };
+            }
+
+            renderPeers(peersData, configFile); 
+            selectedPeerForEdit = null;
         } else {
-            showAlert(data.error || "Updating peer failed.");
+            showAlert(data.error || "اپدیت کاربر موفقیت امیز نبود");
         }
     } catch (error) {
         console.error("Updating peer error:", error);
-        showAlert("Error occurred. Please try again.");
+        showAlert("خطا. لطفا دوباره تلاش کنید");
     }
 });
+
 
 
 let isFiltering = false; 
@@ -1143,7 +1195,7 @@ const toggleKeyVisibility = async () => {
     }
 };
 document.getElementById("configSelect").addEventListener("change", async () => {
-    const selectedConfig = document.getElementById("configSelect").value; 
+    const selectedConfig = document.getElementById("configSelect").value;
     if (!selectedConfig) {
         showAlert("لطفا یک کانفیگ انتخاب نمایید");
         return;
@@ -1151,12 +1203,21 @@ document.getElementById("configSelect").addEventListener("change", async () => {
 
     console.log(`Switching to configuration: ${selectedConfig}`);
 
+    showLoadingSpinner(); 
     currentPage = 1;
 
-    await fetchPeers(selectedConfig, currentPage);  
-    renderPagination(currentPage, totalPages, selectedConfig);
-    await loadWireGuardDetails(selectedConfig);
+    try {
+        await fetchPeers(selectedConfig, currentPage);  
+        renderPagination(currentPage, totalPages, selectedConfig);
+        await loadWireGuardDetails(selectedConfig);
+    } catch (error) {
+        console.error("Error loading configuration:", error);
+        showAlert("خطایی در بارگذاری اینترفیس رخ داده است.");
+    } finally {
+        hideLoadingSpinner();
+    }
 });
+
 
 
 const resetTraffic = async (peerName, config) => {
@@ -1198,7 +1259,7 @@ setInterval(fetchMetrics, 10000);
 setInterval(fetchSpeedData, 5000);
 setInterval(fetchStatuses, 10000);
 const refreshPeerList = (config) => {
-    fetchPeers(config, currentPage); 
+    fetchPeers(config, currentPage, false); 
 };
 
 setInterval(() => {
