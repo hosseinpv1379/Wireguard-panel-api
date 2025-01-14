@@ -412,10 +412,14 @@ let peersData = [];
 let currentPage = 1; 
 let totalPages = 0; 
 const limit = 10; 
+let isPaginationChanging = false;
 
 const fetchPeers = async (config, page = currentPage, isPagination = false) => {
     try {
-        if (isPagination) showLoadingSpinner(); 
+        if (isPagination) {
+            showLoadingSpinner();
+            isPaginationChanging = true; 
+        }
 
         const response = await fetch(
             `/api/peers?config=${config}&page=${page}&limit=${limit}`
@@ -438,7 +442,10 @@ const fetchPeers = async (config, page = currentPage, isPagination = false) => {
         console.error("خطا در دریافت کاربران:", error);
         showAlert("خطا در دریافت کاربران. لطفا دوباره تلاش کنید.");
     } finally {
-        if (isPagination) hideLoadingSpinner();
+        if (isPagination) {
+            hideLoadingSpinner();
+            isPaginationChanging = false; 
+        }
     }
 };
 
@@ -725,7 +732,7 @@ const renderPagination = (currentPage, totalPages, config) => {
         pageButton.className = i === currentPage ? "active" : "";
         pageButton.addEventListener("click", () => {
             if (currentPage !== i) {
-                fetchPeers(config, i, true); 
+                fetchPeers(config, i, true);  
             }
         });
         paginationContainer.appendChild(pageButton);
@@ -1263,12 +1270,17 @@ const refreshPeerList = (config) => {
 };
 
 setInterval(() => {
+    if (isPaginationChanging) {
+        console.log("Skipping peer refresh due to active pagination.");
+        return;
+    }
+
     if (isSearching || isFiltering) {
         console.log("Skipping peer refresh due to active search or filter.");
-        return; 
+        return;
     }
 
     console.log("Refreshing peer list...");
-    refreshPeerList(configSelect.value); 
+    refreshPeerList(configSelect.value);
 }, 10000);
 });
