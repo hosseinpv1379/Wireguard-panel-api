@@ -80,8 +80,10 @@ document.addEventListener("DOMContentLoaded", () => {
     let search = ""; 
     let filter = ""; 
 
-    const fetchPeers = async (config, search = "", filter = "", page = currentPage) => {
+    const fetchPeers = async (config, search = "", filter = "", page = currentPage, isPagination = false) => {
     try {
+        if (isPagination) showLoadingSpinner();
+
         const response = await fetch(
             `/api/peers?config=${config}&search=${encodeURIComponent(search)}&filter=${encodeURIComponent(filter)}&page=${page}&limit=${limit}`
         );
@@ -89,9 +91,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (response.ok) {
             peersData = data.peers || [];
+            totalPages = data.total_pages || 0;
+
+            if (page > totalPages) {
+                page = 1;  
+            }
+
+            if (page <= totalPages && page !== currentPage) {
+                currentPage = page;
+            }
+
             renderPeers(peersData, config);
-            renderPagination(page, data.total_pages, config, search, filter); 
-            currentPage = page; 
+            renderPagination(currentPage, totalPages, config, search, filter);
         } else {
             console.error(data.error || "Couldn't fetch peers.");
             showErrorMessage("No peers found.");
@@ -99,6 +110,8 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (error) {
         console.error("Error in fetching peers:", error);
         showErrorMessage("Unable to fetch peers. Check your connection.");
+    } finally {
+        if (isPagination) hideLoadingSpinner();  
     }
 };
 
@@ -448,14 +461,24 @@ const renderPagination = (currentPage, totalPages, config, search = "", filter =
 
     paginationContainer.innerHTML = ""; 
 
+    if (totalPages === 0) {
+        return;
+    }
+
+    const validPage = currentPage > totalPages ? totalPages : currentPage;
+
     for (let i = 1; i <= totalPages; i++) {
         const pageButton = document.createElement("button");
         pageButton.textContent = i;
-        pageButton.className = i === currentPage ? "active" : "";
-        pageButton.addEventListener("click", () => fetchPeers(config, search, filter, i));
+        pageButton.className = i === validPage ? "active" : "";
+        pageButton.addEventListener("click", () => fetchPeers(config, search, filter, i, true)); 
         paginationContainer.appendChild(pageButton);
     }
 };
+
+
+
+
 
 
 let isFiltering = false; 
@@ -523,15 +546,54 @@ function applyFilter() {
             console.error("خطا در اعمال فیلتر:", error);
         });
 }
+const showLoadingSpinner = () => {
+    const spinner = document.getElementById("loadingSpinner");
+    if (spinner) spinner.style.display = "flex";  
+};
+
+const hideLoadingSpinner = () => {
+    const spinner = document.getElementById("loadingSpinner");
+    if (spinner) spinner.style.display = "none";  
+};
 
 window.applyFilter = applyFilter;
 
 
-    document.getElementById("configSelect").addEventListener("change", (event) => {
+    document.getElementById("configSelect").addEventListener("change", async (event) => {
     currentConfig = event.target.value;
-    currentPage = 1;  
-    fetchPeers(currentConfig);  
+
+    const response = await fetch(`/api/peers?config=${currentConfig}&page=1&limit=${limit}`);
+    const data = await response.json();
+
+    if (data.total_pages < currentPage) {
+        currentPage = 1;
+    }
+
+    showLoadingSpinner();
+
+    try {
+        const fetchResponse = await fetch(`/api/peers?config=${currentConfig}&page=${currentPage}&limit=${limit}`);
+        const fetchData = await fetchResponse.json();
+
+        if (fetchResponse.ok) {
+            peersData = fetchData.peers || [];
+            totalPages = fetchData.total_pages || 0;
+
+            renderPeers(peersData, currentConfig);
+            renderPagination(currentPage, totalPages, currentConfig);
+        } else {
+            showErrorMessage(fetchData.error || "Couldn't fetch peers.");
+        }
+    } catch (error) {
+        console.error("Error while fetching peers:", error);
+        showErrorMessage("Unable to fetch peers. Check your connection.");
+    } finally {
+        hideLoadingSpinner();
+    }
 });
+
+
+
 
     const createActionButton = (iconClass, title, onClick) => {
         const btn = document.createElement("button");
@@ -669,7 +731,14 @@ window.applyFilter = applyFilter;
                     const data = await response.json();
                     if (response.ok) {
                         showAlert(data.message || "کاربر با موفقیت حذف شد.");
-                        fetchPeers(config);  
+                        
+                        peersData = peersData.filter(peer => peer.peer_name !== peerName);
+
+                        if (peersData.length === 0 && currentPage > 1) {
+                            currentPage -= 1;
+                        }
+
+                        fetchPeers(config, "", "", currentPage);  
                         resolve();  
                     } else {
                         showAlert(data.error || "حذف کاربر با خطا مواجه شد.");
@@ -685,7 +754,6 @@ window.applyFilter = applyFilter;
         });
     });
 };
-
 
 
 
