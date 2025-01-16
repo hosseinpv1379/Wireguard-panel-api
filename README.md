@@ -1,14 +1,15 @@
-<div align="center" style="font-family: Arial, sans-serif; font-size: 18px; font-weight: bold; border: 2px solid #ccc; border-radius: 10px; padding: 20px; background-color: #f9f9f9; display: inline-block;">
+<div align="center" style="font-family: Arial, sans-serif; font-size: 18px; font-weight: bold; border: 2px solid #ccc; border-radius: 10px; padding: 15px; background-color: #f9f9f9; display: inline-block; line-height: 1.2;">
 
 🌐 لطفاً زبان مورد نظر خود را انتخاب کنید
 
-<br><br>
+<br>
 
-<a href="https://github.com/Azumi67/Wireguard-panel/blob/main/README.md" style="font-size: 16px; font-weight: bold; text-decoration: none; color: #0078d7;">فارسی</a>
-<span style="font-size: 16px; color: #555;">•</span>
 <a href="https://github.com/Azumi67/Wireguard-panel/blob/main/README-en.md" style="font-size: 16px; font-weight: bold; text-decoration: none; color: #0078d7;">English</a>
+<span style="font-size: 16px; color: #555;">•</span>
+<a href="https://github.com/Azumi67/Wireguard-panel/blob/main/README.md" style="font-size: 16px; font-weight: bold; text-decoration: none; color: #0078d7;">فارسی</a>
 
 </div>
+
 
 ----------------------
 ![R (2)](https://github.com/Azumi67/PrivateIP-Tunnel/assets/119934376/a064577c-9302-4f43-b3bf-3d4f84245a6f)
