@@ -388,7 +388,6 @@ sudo apt update && sudo apt install -y curl && apt install git -y && curl -fsSL 
 
 ------------------------------------ 
 
-- اجرای دستورات
 
 <div align="left">
   
