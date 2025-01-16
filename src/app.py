@@ -277,10 +277,22 @@ def validate_json(schema=None):
 peer_schema = {
     "type": "object",
     "properties": {
-        "peerName": {"type": "string", "pattern": r"^[a-zA-Z0-9_-]+$"},  
-        "peerIp": {"type": "string", "format": "ipv4"},
-        "dataLimit": {"type": "string", "pattern": r"^\d+(MiB|GiB)$"},  
-        "configFile": {"type": "string"},
+        "peerName": {
+            "type": "string",
+            "pattern": r"^[a-zA-Z0-9_-]+$"
+        },
+        "peerIp": {
+            "type": "string",
+            "format": "ipv4"
+        },
+        "dataLimit": {
+            "type": "string",
+            "pattern": r"^\d+(MiB|GiB)$"
+        },
+        "configFile": {
+            "type": "string",
+            "pattern": r"^[a-zA-Z0-9_-]+\.conf$"
+        },
         "dns": {"type": "string"},
         "expiryMonths": {"type": "integer", "minimum": 0},
         "expiryDays": {"type": "integer", "minimum": 0},
@@ -288,26 +300,34 @@ peer_schema = {
         "expiryMinutes": {"type": "integer", "minimum": 0},
         "firstUsage": {"type": "boolean"},
         "mtu": {"type": "integer", "minimum": 0},
-        "persistentKeepalive": {"type": "integer", "minimum": 0},
+        "persistentKeepalive": {"type": "integer", "minimum": 0}
     },
     "required": ["peerName", "peerIp", "dataLimit"],
-    "additionalProperties": False, 
+    "additionalProperties": False
 }
 
- 
 edit_peer_schema = {
     "type": "object",
     "properties": {
-        "peerName": {"type": "string", "pattern": "^[a-zA-Z0-9_]+$"},
-        "dataLimit": {"type": ["string", "null"], "pattern": "^\d+(MiB|GiB)$"},
+        "peerName": {
+            "type": "string",
+            "pattern": r"^[a-zA-Z0-9_-]+$"
+        },
+        "dataLimit": {
+            "type": ["string", "null"],
+            "pattern": r"^\d+(MiB|GiB)$"
+        },
         "dns": {"type": ["string", "null"]},
         "expiryDays": {"type": ["integer", "null"], "minimum": 0},
         "expiryMonths": {"type": ["integer", "null"], "minimum": 0},
         "expiryHours": {"type": ["integer", "null"], "minimum": 0},
         "expiryMinutes": {"type": ["integer", "null"], "minimum": 0},
-        "configFile": {"type": "string", "pattern": "^[a-zA-Z0-9_-]+\.conf$"}  
+        "configFile": {
+            "type": "string",
+            "pattern": r"^[a-zA-Z0-9_-]+\.conf$"
+        }
     },
-    "required": ["peerName"],  
+    "required": ["peerName"],
     "additionalProperties": False
 }
 
@@ -3723,8 +3743,9 @@ def create_peer():
         print(f"Received data: {data}")
         
         peer_name = data.get('peerName')
-        if not peer_name or not re.match(r'^[a-zA-Z0-9_]+$', peer_name):
-            return jsonify({"error": "Wrong peer name. Only letters, numbers, and underscores are allowed."}), 400
+        if not peer_name or not re.match(r'^[a-zA-Z0-9_-]+$', peer_name):
+            return jsonify({"error": "Wrong peer name. Only letters, numbers, underscores, and dashes are allowed."}), 400
+
 
         peer_ip = data.get('peerIp')
         try:
@@ -3772,103 +3793,210 @@ def create_peer():
         if total_expiry_minutes <= 0:
             return jsonify({"error": "Total expiry time must be greater than zero."}), 400
 
+        bulk_count = int(data.get("bulkCount", 1))  
+
         with json_lock:
             peers = load_peers_with_lock(config_file)
             print(f"Loaded peers from {config_file}.json: {peers}")
 
-            for peer in peers:
-                if peer.get("peer_ip") == peer_ip:
-                    if not peer.get("deleted", False):
-                        return jsonify({"error": f"Peer IP {peer_ip} is already in use."}), 400
-                    else:
-                        peer["deleted"] = False
-                        save_peers_with_lock(config_file, peers)
-                        break
+            if bulk_count == 1:
+                for peer in peers:
+                    if peer.get("peer_ip") == peer_ip:
+                        if not peer.get("deleted", False):
+                            return jsonify({"error": f"Peer IP {peer_ip} is already in use."}), 400
+                        else:
+                            peer["deleted"] = False
+                            save_peers_with_lock(config_file, peers)
+                            break
 
-            peer_token = generate_peer_token()
+                peer_token = generate_peer_token()
 
-            client_private_key_bytes = nacl.bindings.randombytes(32)
-            client_private_key = base64.b64encode(client_private_key_bytes).decode("utf-8")
-            client_public_key = derive_public_key(client_private_key)
+                client_private_key_bytes = nacl.bindings.randombytes(32)
+                client_private_key = base64.b64encode(client_private_key_bytes).decode("utf-8")
+                client_public_key = derive_public_key(client_private_key)
 
-            peer = {
-                "peer_name": peer_name,
-                "peer_ip": peer_ip,
-                "dns": dns,
-                "limit": data_limit,
-                "used": 0,
-                "remaining": convert_to_bytes(data_limit),
-                "monitor_blocked": False,
-                "expiry_blocked": False,
-                "private_key": client_private_key,
-                "public_key": client_public_key,
-                "token": peer_token,  
-                "expiry_time": {
-                    "months": expiry_months,
-                    "days": expiry_days,
-                    "hours": expiry_hours,
-                    "minutes": expiry_minutes,
-                },
-                "remaining_time": total_expiry_minutes,
-                "first_usage": first_usage,
-                "persistent_keepalive": persistent_keepalive,
-                "mtu": mtu,
-                "config": config_file,
-                "last_received_bytes": 0,
-                "last_sent_bytes": 0
-            }
+                peer = {
+                    "peer_name": peer_name,
+                    "peer_ip": peer_ip,
+                    "dns": dns,
+                    "limit": data_limit,
+                    "used": 0,
+                    "remaining": convert_to_bytes(data_limit),
+                    "monitor_blocked": False,
+                    "expiry_blocked": False,
+                    "private_key": client_private_key,
+                    "public_key": client_public_key,
+                    "token": peer_token,  
+                    "expiry_time": {
+                        "months": expiry_months,
+                        "days": expiry_days,
+                        "hours": expiry_hours,
+                        "minutes": expiry_minutes,
+                    },
+                    "remaining_time": total_expiry_minutes,
+                    "first_usage": first_usage,
+                    "persistent_keepalive": persistent_keepalive,
+                    "mtu": mtu,
+                    "config": config_file,
+                    "last_received_bytes": 0,
+                    "last_sent_bytes": 0
+                }
 
-            peers.append(peer)
-            save_peers_with_lock(config_file, peers)
+                peers.append(peer)
+                save_peers_with_lock(config_file, peers)
 
-            interface = sanitize_interface_name(config_file.split(".")[0])
-            wg_path = "wg"  
+                interface = sanitize_interface_name(config_file.split(".")[0])
+                wg_path = "wg"  
 
-            subprocess.run(
-                [wg_path, "set", interface, "peer", client_public_key, "allowed-ips", f"{sanitized_peer_ip}/32"],
-                check=True
-            )
+                subprocess.run(
+                    [wg_path, "set", interface, "peer", client_public_key, "allowed-ips", f"{sanitized_peer_ip}/32"],
+                    check=True
+                )
 
-            config_path = os.path.join("/etc/wireguard", config_file) 
-            peer_config = (
-                f"[Peer]\n"
-                f"# {peer_name}\n"
-                f"PublicKey = {client_public_key}\n"
-                f"AllowedIPs = {peer_ip}/32\n"
-                f"PersistentKeepalive = {persistent_keepalive}\n"
-            ).strip() + "\n\n"
+                config_path = os.path.join("/etc/wireguard", config_file) 
+                peer_config = (
+                    f"[Peer]\n"
+                    f"# {peer_name}\n"
+                    f"PublicKey = {client_public_key}\n"
+                    f"AllowedIPs = {peer_ip}/32\n"
+                    f"PersistentKeepalive = {persistent_keepalive}\n"
+                ).strip() + "\n\n"
 
-            with open(config_path, "a") as conf:
-                conf.write(peer_config)
+                with open(config_path, "a") as conf:
+                    conf.write(peer_config)
 
-        short_links = load_short_links()
+                short_links = load_short_links()
 
-        long_interactive_link = url_for(
-            'peer_details',
-            peer_name=peer['peer_name'],
-            config_file=peer['config'],
-            token=peer_token,
-            _external=True
-        )
-        encrypted_link = cipher.encrypt(long_interactive_link.encode())
-        short_id = secrets.token_urlsafe(8)
-        if short_id not in short_links:  
-            short_links[short_id] = encrypted_link.decode()
-            save_short_links(short_links)
+                long_interactive_link = url_for(
+                    'peer_details',
+                    peer_name=peer['peer_name'],
+                    config_file=peer['config'],
+                    token=peer_token,
+                    _external=True
+                )
+                encrypted_link = cipher.encrypt(long_interactive_link.encode())
+                short_id = secrets.token_urlsafe(8)
+                if short_id not in short_links:  
+                    short_links[short_id] = encrypted_link.decode()
+                    save_short_links(short_links)
 
-        short_interactive_link = url_for('short_redirect', short_id=short_id, _external=True)
+                short_interactive_link = url_for('short_redirect', short_id=short_id, _external=True)
 
-        print(f"Long interactive link for peer '{peer_name}': {long_interactive_link}")
-        print(f"Short interactive link for peer '{peer_name}': {short_interactive_link}")
+                print(f"Long interactive link for peer '{peer_name}': {long_interactive_link}")
+                print(f"Short interactive link for peer '{peer_name}': {short_interactive_link}")
 
-        return jsonify({
-            "message": f"Peer created successfully in {config_file}!",
-            "peer_name": peer_name,
-            "short_link": short_interactive_link
-        })
+                return jsonify({
+                    "message": f"Peer created successfully in {config_file}!",
+                    "peer_name": peer_name,
+                    "short_link": short_interactive_link
+                })
+
+            else:
+                network = ip_network(peer_ip + "/24", strict=False)
+                used_ips = [
+                    peer["peer_ip"]
+                    for peer in peers
+                    if not peer.get("deleted", False)
+                ]
+                available_ips = [
+                    str(ip) for ip in network.hosts() if str(ip) not in used_ips and str(ip) >= peer_ip
+                ]
+
+                if len(available_ips) < bulk_count:
+                    return jsonify({"error": "Not enough available IP addresses for the requested bulk creation."}), 400
+
+                responses = []
+                for i in range(bulk_count):
+                    current_peer_ip = available_ips[i]
+                    new_peer_name = f"{peer_name}-{i + 1}"
+
+                    peer_token = generate_peer_token()
+
+                    client_private_key_bytes = nacl.bindings.randombytes(32)
+                    client_private_key = base64.b64encode(client_private_key_bytes).decode("utf-8")
+                    client_public_key = derive_public_key(client_private_key)
+
+                    peer = {
+                        "peer_name": new_peer_name,
+                        "peer_ip": current_peer_ip,
+                        "dns": dns,
+                        "limit": data_limit,
+                        "used": 0,
+                        "remaining": convert_to_bytes(data_limit),
+                        "monitor_blocked": False,
+                        "expiry_blocked": False,
+                        "private_key": client_private_key,
+                        "public_key": client_public_key,
+                        "token": peer_token,  
+                        "expiry_time": {
+                            "months": expiry_months,
+                            "days": expiry_days,
+                            "hours": expiry_hours,
+                            "minutes": expiry_minutes,
+                        },
+                        "remaining_time": total_expiry_minutes,
+                        "first_usage": first_usage,
+                        "persistent_keepalive": persistent_keepalive,
+                        "mtu": mtu,
+                        "config": config_file,
+                        "last_received_bytes": 0,
+                        "last_sent_bytes": 0
+                    }
+
+                    peers.append(peer)
+
+                    interface = sanitize_interface_name(config_file.split(".")[0])
+                    wg_path = "wg"  
+                    subprocess.run(
+                        [wg_path, "set", interface, "peer", client_public_key, "allowed-ips", f"{current_peer_ip}/32"],
+                        check=True
+                    )
+
+                    config_path = os.path.join("/etc/wireguard", config_file)
+                    peer_config = (
+                        f"[Peer]\n"
+                        f"# {new_peer_name}\n"
+                        f"PublicKey = {client_public_key}\n"
+                        f"AllowedIPs = {current_peer_ip}/32\n"
+                        f"PersistentKeepalive = {persistent_keepalive}\n"
+                    ).strip() + "\n\n"
+
+                    with open(config_path, "a") as conf:
+                        conf.write(peer_config)
+
+                    short_links = load_short_links()
+                    long_interactive_link = url_for(
+                        'peer_details',
+                        peer_name=peer['peer_name'],
+                        config_file=peer['config'],
+                        token=peer_token,
+                        _external=True
+                    )
+                    encrypted_link = cipher.encrypt(long_interactive_link.encode())
+                    short_id = secrets.token_urlsafe(8)
+                    if short_id not in short_links:  
+                        short_links[short_id] = encrypted_link.decode()
+                        save_short_links(short_links)
+
+                    short_interactive_link = url_for('short_redirect', short_id=short_id, _external=True)
+
+                    responses.append({
+                        "peer_name": new_peer_name,
+                        "short_link": short_interactive_link,
+                        "peer_ip": current_peer_ip
+                    })
+
+                save_peers_with_lock(config_file, peers)
+
+                return jsonify({
+                    "message": f"{bulk_count} peers created successfully.",
+                    "peers": responses
+                }), 200
+
     except Exception as e:
         print(f"Error: {e}")
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+
 
 
 @app.route("/api/get-peer-link", methods=["GET"])
@@ -4508,10 +4636,12 @@ def edit_peer():
         config_file = data.get("configFile")
 
         if not config_file or not os.path.isfile(f"{WIREGUARD_CONFIG_DIR}/{config_file}"):
-            return jsonify({"error": f"Invalid or missing configuration file: {config_file}"}), 400
+            return jsonify({"error": f"Invalid or missing config file: {config_file}"}), 400
 
-        if not peer_name or not re.match(r'^[a-zA-Z0-9_]+$', peer_name):
-            return jsonify({"error": "Wrong peer name. Only letters, numbers, and underscores are allowed."}), 400
+        if not peer_name or not re.match(r'^[a-zA-Z0-9_-]+$', peer_name):
+            return jsonify({
+                "error": "Wrong peer name. Only letters, numbers, underscores, and dashes are allowed."
+            }), 400
 
         new_limit = data.get("dataLimit")
         if new_limit:
@@ -4525,20 +4655,19 @@ def edit_peer():
         if new_dns:
             dns_list = new_dns.split(",")
             for dns_entry in dns_list:
-                if not re.match(r'^\d{1,3}(\.\d{1,3}){3}$', dns_entry) and not re.match(r'^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', dns_entry):
+                if (not re.match(r'^\d{1,3}(\.\d{1,3}){3}$', dns_entry)
+                        and not re.match(r'^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', dns_entry)):
                     return jsonify({"error": "Wrong DNS value. Must be valid IP addresses or domain names."}), 400
 
         expiry_months = int(data.get("expiryMonths") or 0)
         expiry_days = int(data.get("expiryDays") or 0)
         expiry_hours = int(data.get("expiryHours") or 0)
         expiry_minutes = int(data.get("expiryMinutes") or 0)
-
         if expiry_months < 0 or expiry_days < 0 or expiry_hours < 0 or expiry_minutes < 0:
             return jsonify({"error": "Expiry times cannot be negative."}), 400
 
-        with json_lock:  
-            peers = load_peers_with_lock(config_file)  
-
+        with json_lock:
+            peers = load_peers_with_lock(config_file)
             peer = next((p for p in peers if p["peer_name"] == peer_name), None)
             if not peer:
                 return jsonify({"error": f"Peer {peer_name} not found in {config_file}"}), 404
@@ -4565,15 +4694,13 @@ def edit_peer():
                 }
                 peer["remaining_time"] = total_minutes
 
-            save_peers_with_lock(config_file, peers) 
+            save_peers_with_lock(config_file, peers)
 
         return jsonify({"message": "Peer updated successfully", "peer": peer})
 
     except Exception as e:
         print(f"error in editing peer: {e}")
         return jsonify({"error": f"Couldn't update peer: {str(e)}"}), 500
-
-
 
 
 
