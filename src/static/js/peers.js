@@ -68,20 +68,24 @@ document.addEventListener("DOMContentLoaded", () => {
                 fetchPeers(currentConfig); 
             } else {
                 console.error("error in fetching configs:", data.error);
-                showErrorMessage("fetching configs failed. try again.");
+                showAlert("fetching configs failed. try again.");
             }
         } catch (error) {
             console.error("error @ fetching configs:", error);
-            showErrorMessage("unable to fetch configurations.");
+            showAlert("unable to fetch configurations.");
         }
     };
     let currentPage = 1; 
     let search = ""; 
     let filter = ""; 
+    let isPaginationChanging = false;
 
     const fetchPeers = async (config, search = "", filter = "", page = currentPage, isPagination = false) => {
     try {
-        if (isPagination) showLoadingSpinner();
+        if (isPagination) {
+            showLoadingSpinner(); 
+            isPaginationChanging = true;  
+        }
 
         const response = await fetch(
             `/api/peers?config=${config}&search=${encodeURIComponent(search)}&filter=${encodeURIComponent(filter)}&page=${page}&limit=${limit}`
@@ -93,24 +97,27 @@ document.addEventListener("DOMContentLoaded", () => {
             totalPages = data.total_pages || 0;
 
             if (page > totalPages) {
-                page = 1;  
+                page = 1; 
             }
 
             if (page <= totalPages && page !== currentPage) {
-                currentPage = page;
+                currentPage = page; 
             }
 
             renderPeers(peersData, config);
             renderPagination(currentPage, totalPages, config, search, filter);
         } else {
             console.error(data.error || "Couldn't fetch peers.");
-            showErrorMessage("No peers found.");
+            showAlert("No peers found.");
         }
     } catch (error) {
-        console.error("Error in fetching peers:", error);
-        showErrorMessage("Unable to fetch peers. Check your connection.");
+        console.error("error in fetching peers:", error);
+        showAlert("Unable to fetch peers. Check your connection.");
     } finally {
-        if (isPagination) hideLoadingSpinner();  
+        if (isPagination) {
+            hideLoadingSpinner(); 
+            isPaginationChanging = false;  
+        }
     }
 };
 
@@ -456,13 +463,17 @@ const renderPagination = (currentPage, totalPages, config, search = "", filter =
         return;
     }
 
-    const validPage = currentPage > totalPages ? totalPages : currentPage;
+    const validPage = currentPage > totalPages ? totalPages : currentPage; 
 
     for (let i = 1; i <= totalPages; i++) {
         const pageButton = document.createElement("button");
         pageButton.textContent = i;
         pageButton.className = i === validPage ? "active" : "";
-        pageButton.addEventListener("click", () => fetchPeers(config, search, filter, i, true)); 
+        pageButton.addEventListener("click", () => {
+            if (currentPage !== i) {
+                fetchPeers(config, search, filter, i, true); 
+            }
+        });
         paginationContainer.appendChild(pageButton);
     }
 };
@@ -568,11 +579,11 @@ window.applyFilter = applyFilter;
             renderPeers(peersData, currentConfig);
             renderPagination(currentPage, totalPages, currentConfig);
         } else {
-            showErrorMessage(fetchData.error || "Couldn't fetch peers.");
+            showAlert(fetchData.error || "Couldn't fetch peers.");
         }
     } catch (error) {
         console.error("error in while fetching peers:", error);
-        showErrorMessage("Couldn't fetch peers. Check your connection.");
+        showAlert("Couldn't fetch peers. Check your connection.");
     } finally {
         hideLoadingSpinner();
     }
@@ -812,6 +823,11 @@ const resetTraffic = async (peerName, config) => {
     setInterval(() => {
     if (isSearching || isFiltering) {
         console.log("Skipping peer refresh due to active search or filter.");
+        return; 
+    }
+
+    if (isPaginationChanging) {
+        console.log("Skipping refresh due to active pagination.");
         return; 
     }
 
