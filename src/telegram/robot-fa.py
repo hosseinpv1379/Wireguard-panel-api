@@ -83,6 +83,9 @@ VIEW_PEER_DETAILS = 53
 SELECT_TEMPLATE_PEER = 54
 INPUT_MTU = 55
 INPUT_KEEPALIVE = 56
+SELECT_MODE = 57
+INPUT_BULK_COUNT = 58
+INPUT_EXPIRY_DAYS = 59
 
 def load_telegram_yaml():
     telegram_dir = os.path.dirname(os.path.abspath(__file__))
@@ -1515,7 +1518,12 @@ async def download_peerconfig_general(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
 
-    peer_name = query.data.replace("download_general_", "")
+    data_parts = query.data.split("_")
+    if len(data_parts) < 3:
+        await query.message.reply_text("❌ اطلاعات کافی برای دانلود تنظیمات وجود ندارد.", parse_mode="Markdown")
+        return
+
+    peer_name = "_".join(data_parts[2:])
     config_file = context.user_data.get("selected_config")
 
     if not config_file or not config_file.endswith(".conf"):
@@ -1558,11 +1566,11 @@ async def download_peerconfig_general(update: Update, context: CallbackContext):
                     reply_markup = InlineKeyboardMarkup(keyboard)
 
                     caption = (
-                        f"فایل تنظیمات برای `{peer_name}`\n\n"
-                        f"👤 *نام کاربری:* `{peer_name}`\n"
-                        f"⏳ *تاریخ انقضا:* `{expiry_days} روز`\n"
-                        f"📅 *تاریخ انقضا (شمسی):* `{expiry_date_jalali_str}`\n"
-                        f"📏 *میزان حجم:* `{data_limit}`\n\n"
+                        f"فایل تنظیمات برای {peer_name}\n\n"
+                        f"👤 *نام کاربری:* {peer_name}\n"
+                        f"⏳ *تاریخ انقضا:* {expiry_days} روز\n"
+                        f"📅 *تاریخ انقضا (شمسی):* {expiry_date_jalali_str}\n"
+                        f"📏 *میزان حجم:* {data_limit}\n\n"
                         f"🔗 * لینک کوتاه کانفیگ:*\n"
                         f"[{short_link}]({short_link})\n\n"
                         f"📄 *محتوای فایل تنظیمات:*\n"
@@ -1583,19 +1591,31 @@ async def download_peerconfig_general(update: Update, context: CallbackContext):
         except Exception as e:
             await query.message.reply_text(f"❌ خطا: {str(e)}")
 
-
-
-
-async def generate_peerqr_general(update, context):
+async def generate_peerqr_general(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
 
-    peer_name = query.data.replace("qr_general_", "")
+    data_parts = query.data.split("_")
+    if len(data_parts) < 3:
+        await query.message.reply_text("❌ اطلاعات کافی برای دریافت QR Code وجود ندارد.", parse_mode="Markdown")
+        return
+
+    peer_name = "_".join(data_parts[2:])
     config_file = context.user_data.get("selected_config")
 
     if not config_file or not config_file.endswith(".conf"):
         await query.message.reply_text("❌ فایل تنظیمات وایرگارد پیدا نشد. لطفاً فرآیند را دوباره آغاز کنید.")
         return
+
+    expiry_days = context.user_data.get("expiry_days", 1)
+    data_limit = context.user_data.get("data_limit", "N/A")
+
+    tehran_tz = timezone("Asia/Tehran")
+    now_tehran = datetime.now(tehran_tz).date()
+
+    current_jalali_date = jdate.fromgregorian(date=now_tehran)
+    expiry_date_jalali = current_jalali_date + timedelta(days=expiry_days)
+    expiry_date_jalali_str = f"{expiry_date_jalali.year}/{expiry_date_jalali.month:02}/{expiry_date_jalali.day:02}"
 
     qr_url = f"{API_BASE_URL}/api/download-peer-qr?peerName={peer_name}&config={config_file}"
     config_url = f"{API_BASE_URL}/api/download-peer-config?peerName={peer_name}&config={config_file}"
@@ -1603,8 +1623,8 @@ async def generate_peerqr_general(update, context):
 
     async with aiohttp.ClientSession() as session:
         try:
+            short_link = "N/A"
             async with session.get(short_link_url, headers={"Authorization": f"Bearer {API_KEY}"}) as link_response:
-                short_link = "N/A"
                 if link_response.status == 200:
                     link_data = await link_response.json()
                     short_link = link_data.get("short_link", "N/A")
@@ -1619,6 +1639,7 @@ async def generate_peerqr_general(update, context):
                     await query.message.reply_text(f"❌ خطا در دریافت QR Code: {error.get('error', 'نامشخص')}")
                     return
 
+            peer_config = "N/A"
             async with session.get(config_url, headers={"Authorization": f"Bearer {API_KEY}"}) as config_response:
                 if config_response.status == 200:
                     peer_config = await config_response.text()
@@ -1626,6 +1647,18 @@ async def generate_peerqr_general(update, context):
                     error = await config_response.json()
                     await query.message.reply_text(f"❌ خطا در دریافت تنظیمات: {error.get('error', 'نامشخص')}")
                     return
+
+            caption = (
+                f"فایل تنظیمات برای {peer_name}\n\n"
+                f"👤 *نام کاربری:* {peer_name}\n"
+                f"⏳ *تاریخ انقضا:* {expiry_days} روز\n"
+                f"📅 *تاریخ انقضا (شمسی):* {expiry_date_jalali_str}\n"
+                f"📏 *میزان حجم:* {data_limit}\n\n"
+                f"🔗 *لینک کوتاه کانفیگ:*\n"
+                f"[{short_link}]({short_link})\n\n"
+                f"برای کپی کردن تنظیمات، از متن زیر استفاده کنید:\n"
+                f"```\n{peer_config}\n```"
+            )
 
             keyboard = [
                 [
@@ -1638,13 +1671,7 @@ async def generate_peerqr_general(update, context):
             await context.bot.send_photo(
                 chat_id=query.message.chat_id,
                 photo=BytesIO(qr_image),
-                caption=(
-                    f"📷 کد QR برای کاربر `{peer_name}`\n\n"
-                    f"🔗 *لینک کوتاه کانفیگ:*\n"
-                    f"[{short_link}]({short_link})\n\n"
-                    f"برای کپی کردن تنظیمات، از متن زیر استفاده کنید:\n"
-                    f"```\n{peer_config}\n```"
-                ),
+                caption=caption,
                 parse_mode="Markdown",
                 reply_markup=reply_markup
             )
@@ -1702,7 +1729,7 @@ async def select_interface_delete(update: Update, context: CallbackContext):
 
 async def specify_peername_delete(update: Update, context: CallbackContext):
     peer_name = update.message.text.strip()
-    if not re.match(r"^\w+$", peer_name): 
+    if not re.match(r"^[a-zA-Z0-9_-]+$", peer_name): 
         await update.message.reply_text(
             "❌ فرمت نام کاربر اشتباه است، فقط از حروف و اعداد استفاده کنید."
         )
@@ -1924,25 +1951,50 @@ async def init_peer_create(update: Update, context: CallbackContext):
     if not is_authorized(chat_id):
         await context.bot.send_message(
             chat_id=chat_id,
-            text="❌ You are not authorized to perform this action.",
+            text="❌ شما مجاز به انجام این عملیات نیستید.",
             parse_mode="Markdown"
         )
-        return
+        return ConversationHandler.END
+
+    keyboard = [
+        [InlineKeyboardButton("➕ ایجاد یک کاربر", callback_data="mode_single")],
+        [InlineKeyboardButton("➕➕ ایجاد چند کاربر (Bulk)", callback_data="mode_bulk")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await context.bot.send_message(
+        chat_id,
+        "📋 *انتخاب حالت ایجاد کاربر:*",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+    return SELECT_MODE
+
+async def select_mode(update: Update, context: CallbackContext):
+    query = update.callback_query
+    await query.answer()
+
+    mode = query.data.replace("mode_", "")
+    context.user_data["creation_mode"] = mode  
+
     response = await api_stuff("api/get-interfaces")
     
     if "error" in response:
-        await context.bot.send_message(chat_id, f"❌ *خطا در دریافت اینترفیس‌ها:* `{response['error']}`", parse_mode="Markdown")
+        await context.bot.send_message(chat_id=query.message.chat_id, 
+                                       text=f"❌ *خطا در دریافت اینترفیس‌ها:* {response['error']}",
+                                       parse_mode="Markdown")
         return ConversationHandler.END
 
     interfaces = response.get("interfaces", [])
     if not interfaces:
-        await context.bot.send_message(chat_id, "❌ *هیچ اینترفیسی یافت نشد.*", parse_mode="Markdown")
+        await context.bot.send_message(chat_id=query.message.chat_id, 
+                                       text="❌ *هیچ اینترفیسی یافت نشد.*",
+                                       parse_mode="Markdown")
         return ConversationHandler.END
 
     keyboard = [[InlineKeyboardButton(f"📂 {interface}", callback_data=f"config_{interface}")]
                 for interface in interfaces]
-    await context.bot.send_message(
-        chat_id,
+    await query.message.reply_text(
         "🌐 *یک اینترفیس وایرگارد انتخاب کنید:*",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown"
@@ -1974,9 +2026,6 @@ async def select_config(update: Update, context: CallbackContext):
     )
     return SELECT_IP_ADDRESS
 
-
-
-
 async def choose_ip(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
@@ -1984,17 +2033,39 @@ async def choose_ip(update: Update, context: CallbackContext):
     selected_ip = query.data.replace("ip_", "")
     context.user_data["selected_ip"] = selected_ip
 
-    await query.message.reply_text(
+    mode = context.user_data.get("creation_mode", "single")
+    if mode == "bulk":
+        await query.message.reply_text(
+            "📊 *تعداد کاربران مورد نظر برای ایجاد (حداکثر 50):*\n\n"
+            "مثال: `5`",
+            parse_mode="Markdown"
+        )
+        return INPUT_BULK_COUNT
+    else:
+        await query.message.reply_text(
+            "✏️ *نام کاربر را وارد کنید:* (از حروف فارسی استفاده نکنید)\n\n"
+            "مثال: `azumi`",
+            parse_mode="Markdown"
+        )
+        return INPUT_PEER_NAME
+
+async def write_bulk_count(update: Update, context: CallbackContext):
+    count_text = update.message.text.strip()
+    if not count_text.isdigit() or not (1 <= int(count_text) <= 50):
+        await update.message.reply_text("❌ مقدار نادرست است. لطفاً یک عدد بین 1 تا 50 وارد کنید.")
+        return INPUT_BULK_COUNT
+
+    context.user_data["bulk_count"] = int(count_text)
+    await update.message.reply_text(
         "✏️ *نام کاربر را وارد کنید:* (از حروف فارسی استفاده نکنید)\n\n"
         "مثال: `azumi`",
         parse_mode="Markdown"
     )
     return INPUT_PEER_NAME
 
-
 async def input_peer_name(update: Update, context: CallbackContext):
     peer_name = update.message.text.strip()
-    if not re.match(r"^\w+$", peer_name):
+    if not re.match(r"^[a-zA-Z0-9_-]+$", peer_name):
         await update.message.reply_text("❌ نام کاربر نادرست است. فقط از حروف و اعداد استفاده کنید.")
         return INPUT_PEER_NAME
 
@@ -2009,7 +2080,6 @@ async def input_peer_name(update: Update, context: CallbackContext):
     )
     return SELECT_LIMIT_UNIT
 
-
 async def choose_limit_unit(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
@@ -2022,7 +2092,6 @@ async def choose_limit_unit(update: Update, context: CallbackContext):
         parse_mode="Markdown"
     )
     return INPUT_LIMIT_VALUE
-
 
 async def choose_limit_value(update: Update, context: CallbackContext):
     value = update.message.text.strip()
@@ -2042,7 +2111,6 @@ async def choose_limit_value(update: Update, context: CallbackContext):
     )
     return SELECT_DNS
 
-
 async def select_dns(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
@@ -2057,11 +2125,10 @@ async def select_dns(update: Update, context: CallbackContext):
 
     context.user_data["dns"] = query.data.replace("dns_", "")
     await query.message.reply_text(
-        "⏳ *زمان انقضا را به روز وارد کنید:*\n\n"
-        "مثال: `10`",
+        "⏳ *تعداد روز‌ها:* (مثال: `10`)",
         parse_mode="Markdown"
     )
-    return INPUT_EXPIRY_TIME
+    return INPUT_EXPIRY_DAYS
 
 async def write_custom_dns(update: Update, context: CallbackContext):
     dns = update.message.text.strip()
@@ -2074,23 +2141,21 @@ async def write_custom_dns(update: Update, context: CallbackContext):
 
     context.user_data["dns"] = dns
     await update.message.reply_text(
-        "⏳ *زمان انقضا را به روز وارد کنید:*\n\n"
-        "مثال: `10`",
+        "⏳ *تعداد روز‌ها:* (مثال: `10`)",
         parse_mode="Markdown"
     )
-    return INPUT_EXPIRY_TIME
+    return INPUT_EXPIRY_DAYS
 
+async def write_expiry_days(update: Update, context: CallbackContext):
+    days_text = update.message.text.strip()
+    if not days_text.isdigit() or int(days_text) < 0:
+        await update.message.reply_text("❌ مقدار نادرست است. لطفاً یک عدد غیرمنفی وارد کنید.")
+        return INPUT_EXPIRY_DAYS
 
-async def write_expiry_time(update: Update, context: CallbackContext):
-    days = update.message.text.strip()
-    if not days.isdigit() or int(days) <= 0:
-        await update.message.reply_text("❌ مقدار نادرست است. لطفاً یک عدد مثبت وارد کنید.")
-        return INPUT_EXPIRY_TIME
-
-    context.user_data["expiry_days"] = int(days)
-
+    context.user_data["expiry_days"] = int(days_text)
+    
     await update.message.reply_text(
-        "⏳ *مقدار MTU را وارد کنید (اختیاری، پیش‌فرض: 1280):*\n\n"
+        "⏳ *مقدار MTU را وارد کنید (اختیاری، پیش‌فرض: `1280`):*\n\n"
         "مثال: `1400`",
         parse_mode="Markdown"
     )
@@ -2106,15 +2171,7 @@ async def write_mtu(update: Update, context: CallbackContext):
     context.user_data["mtu"] = int(mtu_value) if mtu_value else 1280
 
     await update.message.reply_text(
-        "⏳ *مقدار Persistent Keepalive را وارد کنید (پیش‌فرض: 25):*\n\n"
-        "مثال: `25`",
-        parse_mode="Markdown"
-    )
-    return INPUT_KEEPALIVE
-
-async def choose_keepalive(update: Update, context: CallbackContext):
-    await update.message.reply_text(
-        "⏳ *مقدار Persistent Keepalive را وارد کنید (پیش‌فرض: 25):*\n\n"
+        "⏳ *مقدار Persistent Keepalive را وارد کنید (پیش‌فرض: `25`):*\n\n"
         "مثال: `25`",
         parse_mode="Markdown"
     )
@@ -2142,7 +2199,6 @@ async def write_keepalive(update: Update, context: CallbackContext):
     )
     return CONFIRM_USAGE
 
-
 async def confirm_use(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
@@ -2153,61 +2209,126 @@ async def confirm_use(update: Update, context: CallbackContext):
     mtu = context.user_data.get("mtu", 1280)
     persistent_keepalive = context.user_data.get("persistent_keepalive", 25)
 
+    expiry_days = context.user_data.get("expiry_days", 0)
+
     payload = {
         "peerName": context.user_data["peer_name"],
         "peerIp": context.user_data["selected_ip"],
         "dataLimit": context.user_data["data_limit"],
         "configFile": context.user_data["selected_config"],
         "dns": context.user_data["dns"],
-        "expiryDays": context.user_data["expiry_days"],
+        "expiryDays": expiry_days,
         "firstUsage": first_usage,
-        "mtu": mtu,
-        "persistentKeepalive": persistent_keepalive
+        "persistentKeepalive": persistent_keepalive,
+        "mtu": mtu
     }
+
+    creation_mode = context.user_data.get("creation_mode", "single")
+    if creation_mode == "bulk":
+        payload["bulkCount"] = context.user_data.get("bulk_count", 1)
 
     response = await api_stuff("api/create-peer", method="POST", data=payload)
     if "error" in response:
-        await query.message.reply_text(f"❌ خطا: `{response['error']}`", parse_mode="Markdown")
+        await query.message.reply_text(f"❌ خطا: {response['error']}", parse_mode="Markdown")
         return ConversationHandler.END
 
-    keyboard = [
-        [
-            InlineKeyboardButton(
-                "📂 دانلود تنظیمات",
-                callback_data=f"download_general_{payload['peerName']}"
-            ),
-            InlineKeyboardButton(
-                "📷 دریافت کد QR",
-                callback_data=f"qr_general_{payload['peerName']}"
-            )
-        ],
-        [
-            InlineKeyboardButton("🔙 بازگشت به منوی کاربران", callback_data="peers_menu"),
-            InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="main_menu")
+    if creation_mode == "single":
+        peer_name = response.get("peer_name", context.user_data["peer_name"])
+        short_link = response.get("short_link", "N/A")
+
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    "📂 دانلود تنظیمات",
+                    callback_data=f"download_general_{peer_name}"
+                ),
+                InlineKeyboardButton(
+                    "📷 دریافت کد QR",
+                    callback_data=f"qr_general_{peer_name}"
+                )
+            ],
+            [
+                InlineKeyboardButton("🔙 بازگشت به منوی کاربران", callback_data="peers_menu"),
+                InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="main_menu")
+            ]
         ]
-    ]
 
-    reply_markup = InlineKeyboardMarkup(keyboard)
+        reply_markup = InlineKeyboardMarkup(keyboard)
 
-    await query.message.reply_text(
-        f"✅ *کاربر '{payload['peerName']}' با موفقیت ایجاد شد!* \n\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"🔹 *Peer name:* `{payload['peerName']}`\n"
-        f"📄 *Interface name:* `{payload['configFile']}`\n"
-        f"🌍 *IP address:* `{payload['peerIp']}`\n"
-        f"📏 *Data limit:* `{payload['dataLimit']}`\n"
-        f"⏳ *Expiry days:* `{payload['expiryDays']} day/s`\n"
-        f"📡 *MTU:* `{payload['mtu']}`\n"
-        f"🛜 *DNS:* `{payload['dns']}`\n"
-        f"🟢 *First usage:* {'Enabled 🟢' if payload['firstUsage'] else 'Disabled 🔴'}\n"
-        f"🌐 *Persistent Keepalive:* `{payload['persistentKeepalive']}`\n\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"برای دانلود فایل تنظیمات یا دریافت کد QR، از دکمه‌های زیر استفاده کنید:",
-        parse_mode="Markdown",
-        reply_markup=reply_markup
-    )
+        await query.message.reply_text(
+            f"✅ *کاربر '{peer_name}' با موفقیت ایجاد شد!* \n\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🔹 *Peer Name:* {peer_name}\n"
+            f"📂 *Config File Name:* {payload['configFile']}\n"
+            f"🌐 *IP Address:* {payload['peerIp']}\n"
+            f"📏 *Data Limit:* {payload['dataLimit']}\n"
+            f"⏳ *Expiry Time:* {expiry_days} days\n"
+            f"📡 *MTU:* {payload['mtu']}\n"
+            f"🛜 *DNS:* {payload['dns']}\n"
+            f"🟢 *Start Date After First Connection:* {'Enabled 🟢' if first_usage else 'Disabled 🔴'}\n"
+            f"🌐 *Persistent Keepalive:* {persistent_keepalive}\n\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"برای دانلود فایل تنظیمات یا دریافت کد QR، از دکمه‌های زیر استفاده کنید:",
+            parse_mode="Markdown",
+            reply_markup=reply_markup
+        )
+
+    elif creation_mode == "bulk":
+        peers = response.get("peers", [])
+        if not peers:
+            await query.message.reply_text("❌ خطا در ایجاد کاربران به صورت گروهی.", parse_mode="Markdown")
+            return ConversationHandler.END
+
+        message = f"✅ *{len(peers)} کاربر با موفقیت ایجاد شدند!*"
+
+        await query.message.reply_text(
+            message,
+            parse_mode="Markdown"
+        )
+
+        for peer in peers:
+            peer_name = peer.get("peer_name")
+            short_link = peer.get("short_link", "N/A")
+
+            keyboard = [
+                [
+                    InlineKeyboardButton(
+                        "📂 دانلود تنظیمات",
+                        callback_data=f"download_general_{peer_name}"
+                    ),
+                    InlineKeyboardButton(
+                        "📷 دریافت کد QR",
+                        callback_data=f"qr_general_{peer_name}"
+                    )
+                ]
+            ]
+
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            await query.message.reply_text(
+                f"🔹 *نام پیره:* {peer_name}\n"
+                f"🔗 *لینک کوتاه کانفیگ:* [{short_link}]({short_link})",
+                parse_mode="Markdown",
+                reply_markup=reply_markup
+            )
+
+        navigation_keyboard = [
+            [
+                InlineKeyboardButton("🔙 بازگشت به منوی کاربران", callback_data="peers_menu"),
+                InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="main_menu")
+            ]
+        ]
+
+        navigation_reply_markup = InlineKeyboardMarkup(navigation_keyboard)
+
+        await query.message.reply_text(
+            "🔄 *برای مدیریت بیشتر کاربران، از دکمه‌های زیر استفاده کنید:*",
+            parse_mode="Markdown",
+            reply_markup=navigation_reply_markup
+        )
 
     return ConversationHandler.END
+
 
 
 
@@ -2260,7 +2381,7 @@ async def select_reset_interface(update: Update, context: CallbackContext):
 
 async def reset_peername(update: Update, context: CallbackContext):
     peer_name = update.message.text.strip()
-    if not re.match(r"^\w+$", peer_name):
+    if not re.match(r"^[a-zA-Z0-9_-]+$", peer_name):
         await update.message.reply_text(
             "❌ نام کاربر نادرست است. فقط از حروف و اعداد استفاده کنید."
         )
@@ -2965,14 +3086,16 @@ def main():
     peer_creation_stuff = ConversationHandler(
     entry_points=[CallbackQueryHandler(init_peer_create, pattern="create_peer")],
     states={
+        SELECT_MODE: [CallbackQueryHandler(select_mode, pattern="mode_.*")],
         SELECT_CONFIG: [CallbackQueryHandler(select_config, pattern="config_.*")],
         SELECT_IP_ADDRESS: [CallbackQueryHandler(choose_ip, pattern="ip_.*")],
+        INPUT_BULK_COUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, write_bulk_count)],
         INPUT_PEER_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, input_peer_name)],
         SELECT_LIMIT_UNIT: [CallbackQueryHandler(choose_limit_unit, pattern="unit_.*")],
         INPUT_LIMIT_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_limit_value)],
         SELECT_DNS: [CallbackQueryHandler(select_dns, pattern="dns_.*")],
         INPUT_CUSTOM_DNS: [MessageHandler(filters.TEXT & ~filters.COMMAND, write_custom_dns)],
-        INPUT_EXPIRY_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, write_expiry_time)],
+        INPUT_EXPIRY_DAYS: [MessageHandler(filters.TEXT & ~filters.COMMAND, write_expiry_days)],
         INPUT_MTU: [MessageHandler(filters.TEXT & ~filters.COMMAND, write_mtu)],
         INPUT_KEEPALIVE: [MessageHandler(filters.TEXT & ~filters.COMMAND, write_keepalive)],  
         CONFIRM_USAGE: [CallbackQueryHandler(confirm_use, pattern="confirm_usage_.*")],
@@ -2984,7 +3107,6 @@ def main():
     fallbacks=[],
     allow_reentry=True,
 )
-
 
     
     peer_edit_stuff = ConversationHandler(
