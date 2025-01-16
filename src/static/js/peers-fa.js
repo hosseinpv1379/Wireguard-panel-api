@@ -69,20 +69,24 @@ document.addEventListener("DOMContentLoaded", () => {
                 fetchPeers(currentConfig);
             } else {
                 console.error("خطا در دریافت کانفیگ‌ها:", data.error);
-                showErrorMessage("دریافت کانفیگ‌ها ناموفق بود. لطفاً دوباره تلاش کنید.");
+                showAlert("دریافت کانفیگ‌ها ناموفق بود. لطفاً دوباره تلاش کنید.");
             }
         } catch (error) {
             console.error("خطا در دریافت کانفیگ‌ها:", error);
-            showErrorMessage("دریافت کانفیگ‌ها امکان‌پذیر نیست.");
+            showAlert("دریافت کانفیگ‌ها امکان‌پذیر نیست.");
         }
     };
     let currentPage = 1; 
     let search = ""; 
     let filter = ""; 
+    let isPaginationChanging = false;
 
     const fetchPeers = async (config, search = "", filter = "", page = currentPage, isPagination = false) => {
     try {
-        if (isPagination) showLoadingSpinner();
+        if (isPagination) {
+            showLoadingSpinner(); 
+            isPaginationChanging = true;  
+        }
 
         const response = await fetch(
             `/api/peers?config=${config}&search=${encodeURIComponent(search)}&filter=${encodeURIComponent(filter)}&page=${page}&limit=${limit}`
@@ -94,27 +98,29 @@ document.addEventListener("DOMContentLoaded", () => {
             totalPages = data.total_pages || 0;
 
             if (page > totalPages) {
-                page = 1;  
+                page = 1; 
             }
 
             if (page <= totalPages && page !== currentPage) {
-                currentPage = page;
+                currentPage = page; 
             }
 
             renderPeers(peersData, config);
             renderPagination(currentPage, totalPages, config, search, filter);
         } else {
             console.error(data.error || "Couldn't fetch peers.");
-            showErrorMessage("No peers found.");
+            showAlert("کاربری یافت نشد");
         }
     } catch (error) {
-        console.error("Error in fetching peers:", error);
-        showErrorMessage("Unable to fetch peers. Check your connection.");
+        console.error("error in fetching peers:", error);
+        showAlert("دریافت اطلاعات کاربران امکان پذیر نیست");
     } finally {
-        if (isPagination) hideLoadingSpinner();  
+        if (isPagination) {
+            hideLoadingSpinner();  
+            isPaginationChanging = false;  
+        }
     }
 };
-
 
 
 const renderPeerBox = (peer) => {
@@ -465,20 +471,20 @@ const renderPagination = (currentPage, totalPages, config, search = "", filter =
         return;
     }
 
-    const validPage = currentPage > totalPages ? totalPages : currentPage;
+    const validPage = currentPage > totalPages ? totalPages : currentPage; 
 
     for (let i = 1; i <= totalPages; i++) {
         const pageButton = document.createElement("button");
         pageButton.textContent = i;
         pageButton.className = i === validPage ? "active" : "";
-        pageButton.addEventListener("click", () => fetchPeers(config, search, filter, i, true)); 
+        pageButton.addEventListener("click", () => {
+            if (currentPage !== i) {
+                fetchPeers(config, search, filter, i, true);  
+            }
+        });
         paginationContainer.appendChild(pageButton);
     }
 };
-
-
-
-
 
 
 let isFiltering = false; 
@@ -582,11 +588,11 @@ window.applyFilter = applyFilter;
             renderPeers(peersData, currentConfig);
             renderPagination(currentPage, totalPages, currentConfig);
         } else {
-            showErrorMessage(fetchData.error || "Couldn't fetch peers.");
+            showAlert(fetchData.error || "Couldn't fetch peers.");
         }
     } catch (error) {
         console.error("Error while fetching peers:", error);
-        showErrorMessage("Unable to fetch peers. Check your connection.");
+        showAlert("دریافت اطلاعات کاربران امکان پذیر نیست");
     } finally {
         hideLoadingSpinner();
     }
@@ -842,8 +848,13 @@ const resetTraffic = async (peerName, config) => {
         return; 
     }
 
+    if (isPaginationChanging) {
+        console.log("Skipping refresh due to active pagination.");
+        return; 
+    }
+
     console.log("Refreshing peer list...");
-    fetchPeers(configSelect.value, search, filter, currentPage); 
+    fetchPeers(configSelect.value, search, filter, currentPage);
 }, 10000);
     fetchConfigs();
 });
