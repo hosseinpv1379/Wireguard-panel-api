@@ -1,65 +1,252 @@
 document.addEventListener("DOMContentLoaded", () => {
-const configSelect = document.getElementById("configSelect");
-const toggleConfig = document.getElementById("toggleConfig");
-const peerContainer = document.getElementById("peerContainer");
-const peerListCard = document.getElementById("peerList");
-const peerIpSelect = document.getElementById("peerIp");
-const qrCodeModal = document.getElementById("qrCodeModal");
-const qrCodeCanvas = document.getElementById("qrCodeCanvas");
-const saveQrCode = document.getElementById("saveQrCode");
-const closeQrModal = document.getElementById("closeQrModal");
-const deleteAllBtn = document.getElementById("deleteAllBtn");
-const deletePeerModal = document.getElementById("deletePeerModal");
-const deleteAllModal = document.getElementById("deleteAllModal");
-const closeDeletePeerModal = document.getElementById("closeDeletePeerModal");
-const closeDeleteAllModal = document.getElementById("closeDeleteAllModal");
-const confirmDeletePeer = document.getElementById("confirmDeletePeer");
-const confirmDeleteAll = document.getElementById("confirmDeleteAll");
-const cancelDeletePeer = document.getElementById("cancelDeletePeer");
-const cancelDeleteAll = document.getElementById("cancelDeleteAll");
-const statusSpan = document.getElementById("wg-status");
-const toggleInterfaceBtn = document.getElementById("toggleInterfaceBtn");
-const privateKeySpan = document.getElementById("wg-private-key");
-const toggleKeyBtn = document.getElementById("toggleKeyBtn");
-const logsBox = document.getElementById('logsBox');
-const logsModal = document.getElementById('logsModal');
-const closeLogsModal = document.getElementById('closeLogsModal');
-const logsContent = document.getElementById('logsContent');
-const logFilter = document.getElementById('logFilter');
-const refreshLogs = document.getElementById('refreshLogs');
-const ipv4Address = document.getElementById('ipv4Address');
-const ipv6Address = document.getElementById('ipv6Address');
-function showAlert(message) {
-    const alertModal = document.getElementById("alertModal");
-    const alertMessage = document.getElementById("alertMessage");
+    function showAlert(message) {
+        const alertModal = document.getElementById("alertModal");
+        const alertMessage = document.getElementById("alertMessage");
 
-    alertMessage.textContent = message;
-    alertModal.style.display = "flex";
+        if (alertModal && alertMessage) {
+            alertMessage.textContent = message;
+            alertModal.style.display = "flex";
 
-    setTimeout(() => {
-        alertModal.style.display = "none";
-    }, 3000); 
-}
+            setTimeout(() => {
+                alertModal.style.display = "none";
+            }, 3000);
+        } else {
+            alert(message);
+        }
+    }
 
     function showConfirm(message, callback) {
-    const confirmModal = document.getElementById("confirmModal");
-    const confirmMessage = document.getElementById("confirmMessage");
-    const confirmYes = document.getElementById("confirmYes");
-    const confirmNo = document.getElementById("confirmNo");
+        const confirmModal = document.getElementById("confirmModal");
+        const confirmMessage = document.getElementById("confirmMessage");
+        const confirmYes = document.getElementById("confirmYes");
+        const confirmNo = document.getElementById("confirmNo");
 
-    confirmMessage.textContent = message;
-    confirmModal.style.display = "flex";
+        if (confirmModal && confirmMessage && confirmYes && confirmNo) {
+            confirmMessage.textContent = message;
+            confirmModal.style.display = "flex";
 
-    confirmYes.onclick = () => {
-        confirmModal.style.display = "none";
-        callback(true);  
-    };
+            confirmYes.onclick = () => {
+                confirmModal.style.display = "none";
+                callback(true);
+            };
 
-    confirmNo.onclick = () => {
-        confirmModal.style.display = "none";
-        callback(false); 
-    };
-}
+            confirmNo.onclick = () => {
+                confirmModal.style.display = "none";
+                callback(false);
+            };
+        } else {
+            if (confirm(message)) {
+                callback(true);
+            } else {
+                callback(false);
+            }
+        }
+    }
+
+    const generateKeysButton = document.getElementById("generateKeys");
+    const bulkAddCheckbox = document.getElementById("bulkAdd");
+    const bulkPeerCountContainer = document.getElementById("bulkPeerCountContainer");
+    const peerForm = document.getElementById("peerForm");
+    const configSelect = document.getElementById("configSelect");
+    const toggleConfig = document.getElementById("toggleConfig");
+    const peerContainer = document.getElementById("peerContainer");
+    const peerListCard = document.getElementById("peerList");
+    const peerIpSelect = document.getElementById("peerIp");
+    const qrCodeModal = document.getElementById("qrCodeModal");
+    const qrCodeCanvas = document.getElementById("qrCodeCanvas");
+    const saveQrCode = document.getElementById("saveQrCode");
+    const closeQrModal = document.getElementById("closeQrModal");
+    const deleteAllBtn = document.getElementById("deleteAllBtn");
+    const deletePeerModal = document.getElementById("deletePeerModal");
+    const deleteAllModal = document.getElementById("deleteAllModal");
+    const closeDeletePeerModal = document.getElementById("closeDeletePeerModal");
+    const closeDeleteAllModal = document.getElementById("closeDeleteAllModal");
+    const confirmDeletePeer = document.getElementById("confirmDeletePeer");
+    const confirmDeleteAll = document.getElementById("confirmDeleteAll");
+    const cancelDeletePeer = document.getElementById("cancelDeletePeer");
+    const cancelDeleteAll = document.getElementById("cancelDeleteAll");
+    const statusSpan = document.getElementById("wg-status");
+    const toggleInterfaceBtn = document.getElementById("toggleInterfaceBtn");
+    const privateKeySpan = document.getElementById("wg-private-key");
+    const toggleKeyBtn = document.getElementById("toggleKeyBtn");
+    const logsBox = document.getElementById('logsBox');
+    const logsModal = document.getElementById('logsModal');
+    const closeLogsModal = document.getElementById('closeLogsModal');
+    const logsContent = document.getElementById('logsContent');
+    const logFilter = document.getElementById('logFilter');
+    const refreshLogs = document.getElementById('refreshLogs');
+    const ipv4Address = document.getElementById('ipv4Address');
+    const ipv6Address = document.getElementById('ipv6Address');
+
+    if (generateKeysButton) {
+        console.log("Attaching to 'generateKeys' button.");
+        generateKeysButton.addEventListener("click", async () => {
+            try {
+                console.log("Generate Keys button clicked.");
+                const response = await fetch("/api/generate-keys");
+                const data = await response.json();
+
+                if (data.error) {
+                    showAlert("خطایی در تولید کلید ها پیش امد " + data.error);
+                    return;     
+                }
+
+                const publicKeyInput = document.getElementById("publicKey");
+                if (publicKeyInput) {
+                    publicKeyInput.value = data.publicKey;
+                    console.log("Public key generated.");
+                } else {
+                    console.error("ID 'publicKey' not found.");
+                }
+            } catch (error) {
+                console.error("Generating keys failed:", error);
+                showAlert("خطایی در تولید کلید پیش امد");
+            }
+        });
+    } else {
+        console.error("ID 'generateKeys' not found.");
+    }
+
+    if (bulkAddCheckbox) {
+        console.log("Attaching to 'bulkAdd' checkbox.");
+        bulkAddCheckbox.addEventListener("change", (event) => {
+            if (bulkPeerCountContainer) {
+                if (event.target.checked) {
+                    bulkPeerCountContainer.style.display = "block";
+                    console.log("Bulk Add checked. Showing its stuff.");
+                } else {
+                    bulkPeerCountContainer.style.display = "none";
+                    console.log("Bulk Add unchecked. Hiding its stuff.");
+                }
+            } else {
+                console.error("ID 'bulkPeerCountContainer' not found.");
+            }
+        });
+    } else {
+        console.error("ID 'bulkAdd' not found.");
+    }
+
+    if (peerForm) {
+        console.log("Attaching submitform to 'peerForm'.");
+        peerForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            console.log("submitform triggered.");
+
+            const peerName = document.getElementById("peerName").value.trim();
+            const peerIp = document.getElementById("peerIp").value.trim();
+            const dataLimit = document.getElementById("dataLimit").value.trim();
+            const dataLimitUnit = document.getElementById("dataLimitUnit").value; 
+            const dns = document.getElementById("dns").value.trim(); 
+            const expiryDays = parseInt(document.getElementById("expiryDays").value) || 0;
+            const expiryMonths = parseInt(document.getElementById("expiryMonths").value) || 0;
+            const expiryHours = parseInt(document.getElementById("expiryHours").value) || 0;
+            const expiryMinutes = parseInt(document.getElementById("expiryMinutes").value) || 0;
+            const config = document.getElementById("configSelect").value;
+            const firstUsage = document.getElementById("firstUsage").checked;
+            const persistentKeepalive = parseInt(document.getElementById("persistentKeepalive").value) || 25; 
+            const mtu = parseInt(document.getElementById("mtu").value) || 1280; 
+            const bulkAdd = document.getElementById("bulkAdd").checked;
+            const bulkPeerCount = bulkAdd ? parseInt(document.getElementById("bulkPeerCount").value) || 1 : 1;
+
+            if (!peerName || !peerIp || !dataLimit || !config) {
+                showAlert("تمام قسمت های مورد نیاز را پر کنید");
+                console.warn("Validation failed: Missing required fields.");
+                return;
+            }
+
+            if (bulkAdd && (isNaN(bulkPeerCount) || bulkPeerCount < 1 || bulkPeerCount > 100)) {
+                showAlert("لطفا بین 1 تا 50 تعداد کاربر انتخاب نمایید");
+                console.warn("Validation failed: Invalid bulkPeerCount.");
+                return;
+            }
+
+            const dataLimitValue = `${dataLimit}${dataLimitUnit}`;
+
+            console.log("Expiry Fields Captured:");
+            console.log("Days:", expiryDays, "Months:", expiryMonths, "Hours:", expiryHours, "Minutes:", expiryMinutes);
+
+            const payload = {
+                peerName,
+                peerIp,
+                dataLimit: dataLimitValue,
+                configFile: config,
+                dns, 
+                expiryDays,
+                expiryMonths,
+                expiryHours,
+                expiryMinutes,
+                firstUsage,
+                persistentKeepalive, 
+                mtu, 
+                bulkCount: bulkAdd ? bulkPeerCount : 1
+            };
+
+            console.log("Payload being sent to backend:", payload);
+
+            try {
+                const response = await fetch(`/api/create-peer`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    if (bulkAdd) {
+                        showAlert(`${data.message}`);
+                        data.peers.forEach(peer => {
+                            console.log(`Peer Created: ${peer.peer_name}, IP: ${peer.peer_ip}, Short Link: ${peer.short_link}`);
+                        });
+                    } else {
+                        showAlert("کاربر با موفقیت ساخته شد");
+                    }
+
+                    document.getElementById("peerName").value = "";
+                    document.getElementById("peerIp").value = "";
+                    document.getElementById("publicKey").value = "";
+                    document.getElementById("dataLimit").value = "";
+                    document.getElementById("dataLimitUnit").value = "MiB";
+                    document.getElementById("expiryDays").value = "";
+                    document.getElementById("expiryMonths").value = "";
+                    document.getElementById("expiryHours").value = "";
+                    document.getElementById("expiryMinutes").value = "";
+                    document.getElementById("firstUsage").checked = false;
+                    document.getElementById("persistentKeepalive").value = 25; 
+                    document.getElementById("mtu").value = 1280; 
+                    document.getElementById("bulkAdd").checked = false;
+                    document.getElementById("bulkPeerCount").value = "";
+                    if (bulkPeerCountContainer) {
+                        bulkPeerCountContainer.style.display = "none";
+                    }
+                    const createPeerModal = document.getElementById("createPeerModal");
+                    if (createPeerModal) {
+                        createPeerModal.style.display = "none";
+                    }
+
+                    if (typeof fetchPeers === "function") {
+                        fetchPeers(config);
+                    } else {
+                        console.warn("Func 'fetchPeers' is not defined.");
+                    }
+                } else {
+                    showAlert("خطای ساخت کاربر: " + data.error);
+                    console.error("Backend returned an error:", data.error);
+                }
+            } catch (error) {
+                console.error("error in fetch:", error);
+                showAlert("ساخت کاربر موفقیت امیز نبود");
+            }
+        });
+    } else {
+        console.error("ID 'peerForm' not found.");
+    }
+
+    if (toggleConfig && peerContainer) {
+        toggleConfig.addEventListener("click", () => {
+            peerContainer.style.display = peerContainer.style.display === "none" ? "block" : "none";
+        });
+    }
 
 async function showQrCode(peerName, config) {
     const qrCodeModal = document.getElementById("qrCodeModal");
@@ -463,7 +650,7 @@ const hideLoadingSpinner = () => {
 
 const renderPeers = (peers, config) => {
     const peerContainer = document.getElementById("peerContainer");
-    peerContainer.innerHTML = ""; 
+    peerContainer.innerHTML = "";
 
     if (peers && peers.length > 0) {
         peers.forEach(peer => {
@@ -474,13 +661,12 @@ const renderPeers = (peers, config) => {
             header.className = "header";
 
             const peerName = document.createElement("strong");
-            peerName.textContent = peer.peer_name || "Unnamed Peer";
+            peerName.textContent = peer.peer_name || "Peer بدون نام";
 
-            const toggleIcon = document.createElement("div");
             const isBlocked = peer.monitor_blocked || peer.expiry_blocked;
+            const toggleIcon = document.createElement("div");
             toggleIcon.className = `toggle-icon ${isBlocked ? "inactive" : "active"}`;
             toggleIcon.title = isBlocked ? "فعال کردن کاربر" : "غیرفعال کردن کاربر";
-            
 
             toggleIcon.onclick = async () => {
                 try {
@@ -489,7 +675,7 @@ const renderPeers = (peers, config) => {
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             peerName: peer.peer_name,
-                            blocked: !isBlocked, 
+                            blocked: !isBlocked,
                             config: config
                         }),
                     });
@@ -497,32 +683,62 @@ const renderPeers = (peers, config) => {
                     const result = await response.json();
                     if (response.ok) {
                         showAlert(result.message || `Peer ${peer.peer_name} updated successfully.`);
-                        fetchPeers(config); 
+                        fetchPeers(config);
                     } else {
-                        showAlert(result.error || "toggling peers failed.");
+                        showAlert(result.error || "تغییر وضعیت کاربر ناموفق بود.");
                     }
                 } catch (error) {
-                    console.error("toggling peer error:", error);
-                    showAlert("error occurred. try again.");
+                    console.error("خطا در تغییر وضعیت کاربر:", error);
+                    showAlert("خطایی رخ داد. دوباره تلاش کنید.");
                 }
             };
+
             const status = document.createElement("div");
             status.className = `status ${isBlocked ? "inactive" : "active"}`;
             status.textContent = isBlocked ? "غیرفعال" : "فعال";
 
+            const shortLinkBtn = document.createElement("button");
+            shortLinkBtn.title = "لینک کوتاه";
+            shortLinkBtn.classList.add("short-link-btn");
+            shortLinkBtn.innerHTML = `<i class="fas fa-link"></i>`;
+
+            shortLinkBtn.onclick = async () => {
+                try {
+                    if (peer.short_link) {
+                        copyToClipboard(peer.short_link);
+                        showAlert("لینک کوتاه کپی شد!");
+                    } else {
+                        const url = `/api/get-peer-link?peerName=${encodeURIComponent(peer.peer_name)}&config=${encodeURIComponent(peer.config)}`;
+                        const response = await fetch(url);
+                        const data = await response.json();
+
+                        if (response.ok && data.short_link) {
+                            peer.short_link = data.short_link;
+                            copyToClipboard(peer.short_link);
+                            showAlert("لینک کوتاه کپی شد!");
+                        } else {
+                            showAlert(data.error || "لینک کوتاه یافت نشد.");
+                        }
+                    }
+                } catch (err) {
+                    console.error("خطا در گرفتن لینک کوتاه:", err);
+                    showAlert("خطایی رخ داد. دوباره تلاش کنید.");
+                }
+            };
+
             header.appendChild(peerName);
+            header.appendChild(shortLinkBtn);
             header.appendChild(status);
             header.appendChild(toggleIcon);
 
             const remainingTimeElement = document.createElement("p");
             const updateRemainingTime = () => {
                 const remainingMinutes = peer.remaining_time;
-
                 if (remainingMinutes <= 0) {
                     remainingTimeElement.textContent = "زمان باقی‌مانده: منقضی شده";
                     toggleIcon.className = "toggle-icon inactive";
-                    toggleIcon.title = "Enable Peer";
-                    clearInterval(timer); 
+                    toggleIcon.title = "فعال کردن کاربر";
+                    clearInterval(timer);
                     return;
                 }
 
@@ -540,26 +756,22 @@ const renderPeers = (peers, config) => {
                 } else {
                     clearInterval(timer);
                 }
-            }, 60000); 
+            }, 60000);
 
             updateRemainingTime();
 
             const content = document.createElement("div");
             content.className = "content";
             content.innerHTML = `
-    <p dir="rtl">آدرس IP: <span dir="ltr">${peer.peer_ip || "نامشخص"}</span></p>
-    <p dir="rtl">مصرف شده: <span dir="ltr">${peer.used_human || "0 MiB"}</span> / <span dir="ltr">${peer.limit_human || "نامحدود"}</span></p>
-    <p dir="rtl">حجم باقی‌مانده: <span dir="ltr">${peer.remaining_human || "ناموجود"}</span></p>
-`;
-
-
-
+                <p dir="rtl">آدرس IP: <span dir="ltr">${peer.peer_ip || "نامشخص"}</span></p>
+                <p dir="rtl">مصرف شده: <span dir="ltr">${peer.used_human || "0 MiB"}</span> / <span dir="ltr">${peer.limit_human || "نامحدود"}</span></p>
+                <p dir="rtl">حجم باقی‌مانده: <span dir="ltr">${peer.remaining_human || "ناموجود"}</span></p>
+            `;
 
             content.appendChild(remainingTimeElement);
 
             const footer = document.createElement("div");
             footer.className = "footer";
-
 
             const actions = document.createElement("div");
             actions.className = "actions";
@@ -575,31 +787,30 @@ const renderPeers = (peers, config) => {
             qrCodeBtn.onclick = () => showQrCode(peer.peer_name, config);
 
             const resetBtn = document.createElement("button");
-resetBtn.title = "ریست ترافیک";
-resetBtn.innerHTML = `<i class="fas fa-sync-alt"></i>`;
-resetBtn.onclick = async () => {
-    try {
-        const response = await fetch("/api/reset-traffic", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                peerName: peer.peer_name,
-                config: config, 
-            }),
-        });
-        const data = await response.json();
-        if (response.ok) {
-            showAlert(data.message || "ترافیک با موفقیت ریست شد");
-            fetchPeers(config); 
-        } else {
-            showAlert(data.error || "ریست ترافیک موفقیت امیر نبود");
-        }
-    } catch (error) {
-        console.error("resetting traffic error:", error);
-        showAlert("error occurred. try again.");
-    }
-};
-
+            resetBtn.title = "ریست ترافیک";
+            resetBtn.innerHTML = `<i class="fas fa-sync-alt"></i>`;
+            resetBtn.onclick = async () => {
+                try {
+                    const response = await fetch("/api/reset-traffic", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            peerName: peer.peer_name,
+                            config: config,
+                        }),
+                    });
+                    const data = await response.json();
+                    if (response.ok) {
+                        showAlert(data.message || "ترافیک با موفقیت ریست شد");
+                        fetchPeers(config);
+                    } else {
+                        showAlert(data.error || "ریست ترافیک ناموفق بود.");
+                    }
+                } catch (error) {
+                    console.error("خطا در ریست ترافیک:", error);
+                    showAlert("خطایی رخ داد. دوباره تلاش کنید.");
+                }
+            };
 
             const resetExpiryBtn = document.createElement("button");
             resetExpiryBtn.title = "ریست تاریخ انقضا";
@@ -616,85 +827,57 @@ resetBtn.onclick = async () => {
                     });
                     const data = await response.json();
                     if (response.ok) {
-                        showAlert(data.message || "ریست موفقیت امیز بود");
-                        fetchPeers(config); 
+                        showAlert(data.message || "ریست موفقیت‌آمیز بود");
+                        fetchPeers(config);
                     } else {
-                        showAlert(data.error || "ریست موفقیت امیر نبود");
+                        showAlert(data.error || "ریست تاریخ انقضا ناموفق بود.");
                     }
                 } catch (error) {
-                    console.error("resetting expiry time error:", error);
+                    console.error("خطا در ریست تاریخ انقضا:", error);
                 }
             };
+
             const deleteBtn = document.createElement("button");
-deleteBtn.title = "Delete Peer";
-deleteBtn.innerHTML = `<i class="fas fa-trash-alt"></i>`;
             deleteBtn.title = "حذف کاربر";
-deleteBtn.innerHTML = `<i class="fas fa-trash-alt"></i>`;
-deleteBtn.onclick = async () => {
-    showConfirm(`آیا از حذف کاربر ${peer.peer_name} اطمینان دارید؟`, async (confirmed) => {
-        if (confirmed) {
-            try {
-                const configFile = peer.config || "wg0.conf";
+            deleteBtn.innerHTML = `<i class="fas fa-trash-alt"></i>`;
+            deleteBtn.onclick = async () => {
+                showConfirm(`آیا از حذف کاربر ${peer.peer_name} اطمینان دارید؟`, async (confirmed) => {
+                    if (confirmed) {
+                        try {
+                            const configFile = peer.config || "wg0.conf";
 
-                const response = await fetch("/api/delete-peer", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        peerName: peer.peer_name,
-                        configFile: configFile,
-                        peerIp: peer.peer_ip, 
-                    }),
-                });
+                            const response = await fetch("/api/delete-peer", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    peerName: peer.peer_name,
+                                    configFile: configFile,
+                                    peerIp: peer.peer_ip,
+                                }),
+                            });
 
-                const result = await response.json();
-                if (response.ok) {
-                    showAlert(result.message || "کاربر با موفقیت حذف شد");
+                            const result = await response.json();
+                            if (response.ok) {
+                                showAlert(result.message || "کاربر با موفقیت حذف شد");
 
-                    peersData = peersData.filter(
-                        (p) => !(p.peer_name === peer.peer_name && p.peer_ip === peer.peer_ip)
-                    );
+                                peersData = peersData.filter(
+                                    (p) => !(p.peer_name === peer.peer_name && p.peer_ip === peer.peer_ip)
+                                );
 
-                    if (peersData.length === 0 && currentPage > 1) {
-                        currentPage -= 1;
+                                if (peersData.length === 0 && currentPage > 1) {
+                                    currentPage -= 1;
+                                }
+
+                                fetchPeers(configFile, currentPage, false);
+                            } else {
+                                showAlert(result.error || "خطا در حذف کاربر.");
+                            }
+                        } catch (error) {
+                            console.error("خطا در حذف کاربر:", error);
+                        }
                     }
-
-                    fetchPeers(configFile, currentPage, false);
-                } else {
-                    showAlert(result.error || "خطا در حذف کاربر.");
-                }
-            } catch (error) {
-                console.error("خطا در حذف کاربر:", error);
-            }
-        }
-    });
-};
-
-
-
-function applyFilter() {
-    const filterValue = document.getElementById("filterSelect").value;
-    const query = document.getElementById("searchInput").value.trim();
-
-    const url = `/api/search-peers?query=${encodeURIComponent(query)}&filter=${encodeURIComponent(filterValue)}`;
-
-    fetch(url)
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                console.error("Error fetching peers:", data.error);
-                return;
-            }
-
-            renderPeers(data.peers);
-        })
-        .catch(error => {
-            console.error("Error in applyFilter:", error);
-        });
-}
-
-
-window.applyFilter = applyFilter;
-
+                });
+            };
 
             const editBtn = document.createElement("button");
             editBtn.title = "ویرایش کاربر";
@@ -707,7 +890,9 @@ window.applyFilter = applyFilter;
             actions.appendChild(resetExpiryBtn);
             actions.appendChild(deleteBtn);
             actions.appendChild(editBtn);
+
             footer.appendChild(actions);
+
             peerBox.appendChild(header);
             peerBox.appendChild(content);
             peerBox.appendChild(footer);
@@ -717,6 +902,31 @@ window.applyFilter = applyFilter;
         peerContainer.innerHTML = "<p>کاربری ندارید</p>";
     }
 };
+
+function copyToClipboard(text) {
+    if (!navigator.clipboard) {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+
+        try {
+            document.execCommand("copy");
+        } catch (err) {
+            console.error("کپی ناموفق:", err);
+        }
+        document.body.removeChild(textArea);
+        return;
+    }
+
+    navigator.clipboard.writeText(text).catch(err => {
+        console.error("کپی نشد:", err);
+    });
+}
+
+
 
 const renderPagination = (currentPage, totalPages, config) => {
     const paginationContainer = document.getElementById("paginationContainer");
@@ -922,102 +1132,6 @@ window.downloadPeerConfig = (peerName, config) => {
         console.error("triggering download error:", error);
     }
 };
-document.getElementById("generateKeys").addEventListener("click", async () => {
-    try {
-        const response = await fetch("/api/generate-keys");
-        const data = await response.json();
-
-        if (data.error) {
-            showAlert("generate keys failed: " + data.error);
-            return;     
-        }
-
-document.getElementById("publicKey").value = data.publicKey;
-    } catch (error) {
-        console.error("generating keys failed:", error);
-        showAlert("generate keys failed. check your server.");
-    }
-});
-
-document.getElementById("peerForm").addEventListener("submit", async (event) => {
-event.preventDefault();
-
-    const peerName = document.getElementById("peerName").value.trim();
-    const peerIp = document.getElementById("peerIp").value.trim();
-    const dataLimit = document.getElementById("dataLimit").value.trim();
-    const dataLimitUnit = document.getElementById("dataLimitUnit").value; 
-    const dns = document.getElementById("dns").value.trim(); 
-    const expiryDays = parseInt(document.getElementById("expiryDays").value || 0);
-    const expiryMonths = parseInt(document.getElementById("expiryMonths").value || 0);
-    const expiryHours = parseInt(document.getElementById("expiryHours").value || 0);
-    const expiryMinutes = parseInt(document.getElementById("expiryMinutes").value || 0);
-    const config = document.getElementById("configSelect").value;
-    const firstUsage = document.getElementById("firstUsage").checked;
-    const persistentKeepalive = parseInt(document.getElementById("persistentKeepalive").value || 25); 
-    const mtu = parseInt(document.getElementById("mtu").value || 1280); 
-
-    if (!peerName || !peerIp || !dataLimit || !config) {
-        showAlert("Please fill in all required fields.");
-        return;
-    }
-
-    const dataLimitValue = dataLimit ? `${dataLimit}${dataLimitUnit}` : null;
-
-    console.log("Expiry Fields Captured:");
-    console.log("Days:", expiryDays, "Months:", expiryMonths, "Hours:", expiryHours, "Minutes:", expiryMinutes);
-
-    const payload = {
-        peerName,
-        peerIp,
-        dataLimit: dataLimitValue,
-        configFile: config,
-        dns, 
-        expiryDays,
-        expiryMonths,
-        expiryHours,
-        expiryMinutes,
-        firstUsage,
-        persistentKeepalive, 
-        mtu, 
-    };
-
-    console.log("Payload being sent to backend:", payload);
-
-    try {
-        const response = await fetch(`/api/create-peer`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-            showAlert("کاربر با موفقیت ساخته شد");
-
-            document.getElementById("peerName").value = "";
-            document.getElementById("peerIp").value = "";
-            document.getElementById("publicKey").value = "";
-            document.getElementById("dataLimit").value = "";
-            document.getElementById("dataLimitUnit").value = "MiB";
-            document.getElementById("expiryDays").value = "";
-            document.getElementById("expiryMonths").value = "";
-            document.getElementById("expiryHours").value = "";
-            document.getElementById("expiryMinutes").value = "";
-            document.getElementById("firstUsage").checked = false;
-            document.getElementById("persistentKeepalive").value = 25; 
-            document.getElementById("mtu").value = 1280; 
-            document.getElementById("createPeerModal").style.display = "none";
-
-            fetchPeers(config);
-        } else {
-            showAlert("creating peer error: " + data.error);
-        }
-    } catch (error) {
-        console.error("Error:", error);
-        showAlert("creating peer failed. try again.");
-    }
-});
 
 async function fetchStatuses() {
     try {
