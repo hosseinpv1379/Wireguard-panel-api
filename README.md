@@ -1,8 +1,12 @@
-<div align="center">
+<div align="center" style="font-family: Arial, sans-serif; font-size: 18px; font-weight: bold; border: 2px solid #ccc; border-radius: 10px; padding: 20px; background-color: #f9f9f9; display: inline-block;">
 
-🌐 لطفا زبان را انتخاب کنید
+🌐 لطفاً زبان مورد نظر خود را انتخاب کنید
 
-**[فارسی](https://github.com/Azumi67/Wireguard-panel/blob/main/README.md)** • **[English](https://github.com/Azumi67/Wireguard-panel/blob/main/README-en.md)**
+<br><br>
+
+<a href="https://github.com/Azumi67/Wireguard-panel/blob/main/README.md" style="font-size: 16px; font-weight: bold; text-decoration: none; color: #0078d7;">فارسی</a>
+<span style="font-size: 16px; color: #555;">•</span>
+<a href="https://github.com/Azumi67/Wireguard-panel/blob/main/README-en.md" style="font-size: 16px; font-weight: bold; text-decoration: none; color: #0078d7;">English</a>
 
 </div>
 
