@@ -2,7 +2,7 @@
 
 🌐 لطفا زبان را انتخاب کنید
 
-**[فارسی](https://github.com/Azumi67/Wireguard-panel/blob/main/README.md)** • **[انگلیسی](https://github.com/Azumi67/Wireguard-panel/blob/main/README-en.md)**
+**[فارسی](https://github.com/Azumi67/Wireguard-panel/blob/main/README.md)** • **[English](https://github.com/Azumi67/Wireguard-panel/blob/main/README-en.md)**
 
 </div>
 
