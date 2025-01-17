@@ -2913,14 +2913,19 @@ def obt_private_ip(file_name):
 def calculate_available_ips(private_ip):
     try:
         network = ip_network(private_ip, strict=False)
-        used_ips = []
+        
+        used_ips = set()
+
         for conf in obtain_config_files():
             content = read_file_content(conf)
+            
             for line in content.splitlines():
                 if line.startswith("AllowedIPs") or line.startswith("Address"):
                     ip = line.split("=")[-1].strip().split("/")[0]
-                    used_ips.append(ip)
+                    used_ips.add(ip)
+        
         available_ips = [str(ip) for ip in network.hosts() if str(ip) not in used_ips]
+        
         return available_ips
     except ValueError:
         return []
@@ -3110,16 +3115,18 @@ def toggle_peer():
 
 
 
-
-
 @app.route("/api/available-ips", methods=["GET"])
 def track_available_ips():
     config_file = request.args.get("config", "wg0.conf")
+    
     private_ip = obt_private_ip(config_file)
+    
     if not private_ip:
         return jsonify(error=f"Unable to extract private IP from {config_file}"), 400
+    
     available_ips = calculate_available_ips(private_ip)
-    return jsonify(availableIps=available_ips[:30])
+    
+    return jsonify(availableIps=available_ips[:100])
 
 @app.route("/api/generate-keys", methods=["GET"])
 def generate_keys():
