@@ -38,10 +38,14 @@ DELETE_BACKUP = 6
 RESTORE_BACKUP = 7
 SELECT_PEER_NAME = 8
 SELECT_INTERFACE = 9
-SELECT_PEER_OR_SEARCH = 10
-SEARCH_PEER = 11
-SELECT_PEER_TO_EDIT = 12
-EDIT_OPTION = 13
+STATE_SELECT_INTERFACE = 10
+STATE_SELECT_PEER_OR_SEARCH = 11
+STATE_SEARCH_PEER = 12
+STATE_SELECT_PEER_TO_EDIT = 13
+STATE_EDIT_OPTION = 60
+STATE_SET_DATA_LIMIT = 61
+STATE_SET_DNS = 62
+STATE_SET_EXPIRY_TIME = 63
 SET_DATA_LIMIT = 14
 SET_DNS = 15
 SET_EXPIRY_TIME = 16
@@ -1434,6 +1438,8 @@ async def interface_select(update: Update, context: CallbackContext):
 
     selected_interface = query.data.replace("select_interface_", "")
     context.user_data["selected_interface"] = selected_interface
+    config_file = f"{selected_interface}.conf"
+    context.user_data["selected_config"] = config_file
 
     peer_name = context.user_data.get("search_peer_name", "").strip()
 
@@ -1538,7 +1544,7 @@ async def download_peerconfig_general(update: Update, context: CallbackContext):
                     keyboard = [
                         [
                             InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu"),
-                            InlineKeyboardButton("📋 Peer List", callback_data="peers_menu"),
+                            InlineKeyboardButton("📋 Peers Menu", callback_data="peers_menu"),
                         ]
                     ]
                     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -1644,7 +1650,7 @@ async def generate_peerqr_general(update: Update, context: CallbackContext):
             keyboard = [
                 [
                     InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu"),
-                    InlineKeyboardButton("📋 User List", callback_data="peers_menu"),
+                    InlineKeyboardButton("📋 Peers Menu", callback_data="peers_menu"),
                 ]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -1779,59 +1785,71 @@ async def download_peerconfig_create(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
 
-    peer_name = query.data.replace("download_create_", "").strip()
-    selected_interface = context.user_data.get("selected_interface", "wg0")  
-    config_file = f"{selected_interface}.conf"
-
-    if not config_file or not config_file.endswith(".conf"):
-        await query.message.reply_text("❌ Wireguard config file not found. restart the process.")
+    data_parts = query.data.split("_")
+    if len(data_parts) < 3:
+        await query.message.reply_text("❌ Not enough information to download configuration.", parse_mode="Markdown")
         return
 
-    expiry_days = context.user_data.get("expiry_days", 1)
-    data_limit = context.user_data.get("data_limit", "N/A")
+    peer_name = "_".join(data_parts[2:])
+    config_file = context.user_data.get("selected_config")
 
-    tehran_tz = timezone("Asia/Tehran")
-    now_tehran = datetime.now(tehran_tz).date()
+    if not config_file or not config_file.endswith(".conf"):
+        await query.message.reply_text("❌ Wireguard configuration file not found. Please restart the process.")
+        return
 
-    current_jalali_date = jdate.fromgregorian(date=now_tehran)
-    expiry_date_jalali = current_jalali_date + timedelta(days=expiry_days)
+    short_link = "N/A"  
 
-    expiry_date_jalali_str = f"{expiry_date_jalali.year}/{expiry_date_jalali.month:02}/{expiry_date_jalali.day:02}"
-
-    config_url = f"{API_BASE_URL}/api/download-peer-config?peerName={peer_name}&config={config_file}"
-    short_link_url = f"{API_BASE_URL}/api/get-peer-link?peerName={peer_name}&config={config_file}"
+    peer_details_url = f"{API_BASE_URL}/api/bot-peer-details?peerName={peer_name}&configName={config_file}"
 
     async with aiohttp.ClientSession() as session:
         try:
+            async with session.get(peer_details_url, headers={"Authorization": f"Bearer {API_KEY}"}) as details_response:
+                if details_response.status == 200:
+                    details_data = await details_response.json()
+
+                    data_limit = details_data.get("limit", "N/A")
+                    used_data = details_data.get("used", 0)
+                    remaining_data = details_data.get("remaining", "N/A")
+                    expiry_date_human = details_data.get("expiry_human", "N/A") 
+
+                    expiry_date = details_data.get("expiry", "N/A")
+
+                    print(f"Fetched peer details: Limit: {data_limit}, Used: {used_data}, Remaining: {remaining_data}, Expiry: {expiry_date}")
+
+                else:
+                    await query.message.reply_text(f"❌ Error: {details_response.get('error', 'Unable to fetch user details')}")
+
+            short_link_url = f"{API_BASE_URL}/api/get-peer-link?peerName={peer_name}&config={config_file}"
             async with session.get(short_link_url, headers={"Authorization": f"Bearer {API_KEY}"}) as link_response:
-                short_link = "N/A"
                 if link_response.status == 200:
                     link_data = await link_response.json()
                     short_link = link_data.get("short_link", "N/A")
                 else:
                     print(f"Couldn't retrieve short link. Status: {link_response.status}")
 
+            config_url = f"{API_BASE_URL}/api/download-peer-config?peerName={peer_name}&config={config_file}"
             async with session.get(config_url, headers={"Authorization": f"Bearer {API_KEY}"}) as config_response:
                 if config_response.status == 200:
                     peer_config = await config_response.text()
 
                     keyboard = [
                         [
-                            InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu"),
-                            InlineKeyboardButton("📋 Peer List", callback_data="peers_menu"),
+                            InlineKeyboardButton("🔙 Back to Menu", callback_data="main_menu"),
+                            InlineKeyboardButton("📋 Peers Menu", callback_data="peers_menu"),
                         ]
                     ]
                     reply_markup = InlineKeyboardMarkup(keyboard)
 
                     caption = (
-                        f"Configuration file for `{peer_name}`\n\n"
-                        f"👤 *Username:* `{peer_name}`\n"
-                        f"⏳ *Expiry Date:* `{expiry_days} day(s)`\n"
-                        f"📅 *Expiry Date (Solar):* `{expiry_date_jalali_str}`\n"
-                        f"📏 *Data Limit:* `{data_limit}`\n\n"
-                        f"🔗 *Short Configuration Link:*\n"
+                        f"Configuration file for {peer_name}\n\n"
+                        f"👤 *Username:* {peer_name}\n"
+                        f"⏳ *Expiry Date:* {expiry_date_human}\n"
+                        f"📏 *Data Limit:* {data_limit}\n"
+                        f"📉 *Used Data:* {used_data} B\n"
+                        f"📥 *Remaining Data:* {remaining_data} B\n\n"
+                        f"🔗 *Short Config Link:*\n"
                         f"[{short_link}]({short_link})\n\n"
-                        f"📄 *Configuration File Content:*\n"
+                        f"📄 *Config File Content:*\n"
                         f"```\n{peer_config}\n```"
                     )
 
@@ -1845,31 +1863,45 @@ async def download_peerconfig_create(update: Update, context: CallbackContext):
                     )
                 else:
                     error = await config_response.json()
-                    await query.message.reply_text(f"❌ Error: {error.get('error', 'Unable to fetch the configuration file.')}")
+                    await query.message.reply_text(f"❌ Error: {error.get('error', 'Unable to fetch config file')}")
         except Exception as e:
             await query.message.reply_text(f"❌ Error: {str(e)}")
 
-async def generate_peerqr_create(update, context: CallbackContext):
+async def generate_peerqr_create(update, context):
     query = update.callback_query
     await query.answer()
 
     peer_name = query.data.replace("qr_create_", "").strip()
 
-    selected_interface = context.user_data.get("selected_interface", "wg0")  
+    selected_interface = context.user_data.get("selected_interface", "wg0")
     config_file = f"{selected_interface}.conf"
 
     if not config_file or not config_file.endswith(".conf"):
-        await query.message.reply_text("❌ Wireguard config file not found. restart the process.")
+        await query.message.reply_text("❌ Wireguard configuration file not found. Please restart the process.")
         return
 
     qr_url = f"{API_BASE_URL}/api/download-peer-qr?peerName={peer_name}&config={config_file}"
     config_url = f"{API_BASE_URL}/api/download-peer-config?peerName={peer_name}&config={config_file}"
     short_link_url = f"{API_BASE_URL}/api/get-peer-link?peerName={peer_name}&config={config_file}"
+    peer_details_url = f"{API_BASE_URL}/api/bot-peer-details?peerName={peer_name}&configName={config_file}"
 
     async with aiohttp.ClientSession() as session:
         try:
+            data_limit, used_data, remaining_data, expiry_date_human, expiry_date = "N/A", 0, "N/A", "N/A", "N/A"
+
+            async with session.get(peer_details_url, headers={"Authorization": f"Bearer {API_KEY}"}) as details_response:
+                if details_response.status == 200:
+                    details_data = await details_response.json()
+                    data_limit = details_data.get("limit", "N/A")
+                    used_data = details_data.get("used", 0)
+                    remaining_data = details_data.get("remaining", "N/A")
+                    expiry_date_human = details_data.get("expiry_human", "N/A") 
+                    expiry_date = details_data.get("expiry", "N/A")
+                else:
+                    print(f"Couldn't retrieve peer details. Status: {details_response.status}")
+
+            short_link = "N/A"
             async with session.get(short_link_url, headers={"Authorization": f"Bearer {API_KEY}"}) as link_response:
-                short_link = "N/A"
                 if link_response.status == 200:
                     link_data = await link_response.json()
                     short_link = link_data.get("short_link", "N/A")
@@ -1881,7 +1913,7 @@ async def generate_peerqr_create(update, context: CallbackContext):
                     qr_image = await qr_response.read()
                 else:
                     error = await qr_response.json()
-                    await query.message.reply_text(f"❌ error in fetching QR Code: {error.get('error', 'Unknown error')}")
+                    await query.message.reply_text(f"❌ Error retrieving QR Code: {error.get('error', 'Unknown error')}")
                     return
 
             async with session.get(config_url, headers={"Authorization": f"Bearer {API_KEY}"}) as config_response:
@@ -1889,13 +1921,26 @@ async def generate_peerqr_create(update, context: CallbackContext):
                     peer_config = await config_response.text()
                 else:
                     error = await config_response.json()
-                    await query.message.reply_text(f"❌ error in fetching config: {error.get('error', 'Unknown error')}")
+                    await query.message.reply_text(f"❌ Error retrieving config: {error.get('error', 'Unknown error')}")
                     return
+
+            caption = (
+                f"📷 QR Code for user `{peer_name}`\n\n"
+                f"🔗 *Short Config Link:*\n"
+                f"[{short_link}]({short_link})\n\n"
+                f"👤 *Username:* {peer_name}\n"
+                f"⏳ *Expiry Date:* {expiry_date_human}\n"
+                f"📏 *Data Limit:* {data_limit}\n"
+                f"📉 *Used Data:* {used_data} B\n"
+                f"📥 *Remaining Data:* {remaining_data} B\n\n"
+                f"To copy the configuration, use the text below:\n"
+                f"```\n{peer_config}\n```"
+            )
 
             keyboard = [
                 [
                     InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu"),
-                    InlineKeyboardButton("📋 Peer List", callback_data="peers_menu"),
+                    InlineKeyboardButton("📋 Peers Menu", callback_data="peers_menu"),
                 ]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -1903,13 +1948,7 @@ async def generate_peerqr_create(update, context: CallbackContext):
             await context.bot.send_photo(
                 chat_id=query.message.chat_id,
                 photo=BytesIO(qr_image),
-                caption=(
-                    f"📷 QR Code for user `{peer_name}`\n\n"
-                    f"🔗 *Short Configuration Link:*\n"
-                    f"[{short_link}]({short_link})\n\n"
-                    f"To copy the configuration, use the text below:\n"
-                    f"```\n{peer_config}\n```"
-                ),
+                caption=caption,
                 parse_mode="Markdown",
                 reply_markup=reply_markup
             )
@@ -2224,7 +2263,7 @@ async def confirm_use(update: Update, context: CallbackContext):
                 )
             ],
             [
-                InlineKeyboardButton("🔙 Back to Users Menu", callback_data="peers_menu"),
+                InlineKeyboardButton("🔙 Back to Peers Menu", callback_data="peers_menu"),
                 InlineKeyboardButton("🏠 Back to Main Menu", callback_data="main_menu")
             ]
         ]
@@ -2290,7 +2329,7 @@ async def confirm_use(update: Update, context: CallbackContext):
 
         navigation_keyboard = [
             [
-                InlineKeyboardButton("🔙 Back to Users Menu", callback_data="peers_menu"),
+                InlineKeyboardButton("🔙 Back to Peers Menu", callback_data="peers_menu"),
                 InlineKeyboardButton("🏠 Back to Main Menu", callback_data="main_menu")
             ]
         ]
@@ -2460,18 +2499,18 @@ async def edit_peer_init(update: Update, context: CallbackContext):
 
     response = await api_stuff("api/get-interfaces")
     if "error" in response:
-        await context.bot.send_message(chat_id, text=f"❌ error fetching interfaces: {response['error']}")
+        await context.bot.send_message(chat_id, text=f"❌ Error retrieving interfaces: {response['error']}")
         return ConversationHandler.END
 
     interfaces = response.get("interfaces", [])
     if not interfaces:
-        await context.bot.send_message(chat_id, text="No Wireguard interfaces found.")
+        await context.bot.send_message(chat_id, text="❌ *No interfaces found.*")
         return ConversationHandler.END
 
     keyboard = [[InlineKeyboardButton(interface, callback_data=f"edit_select_interface_{interface}")] for interface in interfaces]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await context.bot.send_message(chat_id, text="🌐 Select a Wireguard interface:", reply_markup=reply_markup)
-    return SELECT_INTERFACE
+    await context.bot.send_message(chat_id, text="🌐 *Select a Wireguard interface:*", reply_markup=reply_markup)
+    return STATE_SELECT_INTERFACE
 
 
 async def edit_select_interface(update: Update, context: CallbackContext):
@@ -2483,29 +2522,32 @@ async def edit_select_interface(update: Update, context: CallbackContext):
 
     response = await api_stuff(f"api/peers-by-interface?interface={selected_interface}")
     if "error" in response:
-        await query.message.reply_text(f"❌ error fetching peers: {response['error']}")
+        await query.message.reply_text(f"❌ Error retrieving peers: {response['error']}")
         return ConversationHandler.END
 
     peers = response.get("peers", [])
     if not peers:
-        await query.message.reply_text(f"No peers found for interface: **{selected_interface}**.")
+        await query.message.reply_text(f"No peers found for interface **{selected_interface}**.")
         return ConversationHandler.END
     displayed_peers = peers[:5]
     keyboard = [[InlineKeyboardButton(peer["peer_name"], callback_data=f"edit_{peer['peer_name']}")] for peer in displayed_peers]
-    keyboard.append([InlineKeyboardButton("🔍 Search Peer by Name", callback_data="search_peer_name")])
+    keyboard.append([InlineKeyboardButton("🔍 Search by peer name", callback_data="search_peer_name")])
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.message.reply_text("Select a peer to edit or search for a peer by name:", reply_markup=reply_markup)
-    return SELECT_PEER_OR_SEARCH
+    await query.message.reply_text(
+        "Select a peer to edit or search by peer name:",
+        reply_markup=reply_markup
+    )
+    return STATE_SELECT_PEER_OR_SEARCH
 
 
 async def search_peername(update: Update, context: CallbackContext):
     await update.callback_query.answer()
     await update.callback_query.message.reply_text(
-        "✏️ *Enter the Peer Name for which you want to reset traffic or expiry:* (No Persian)\n\n"
+        "✏️ *Enter the peer name you want to reset traffic or expiry for:* (Do not use Persian letters)\n\n"
         "Example: `azumi`",
         parse_mode="Markdown"
     )
-    return SEARCH_PEER
+    return STATE_SEARCH_PEER
 
 
 async def filter_peersname(update: Update, context: CallbackContext):
@@ -2514,20 +2556,21 @@ async def filter_peersname(update: Update, context: CallbackContext):
 
     response = await api_stuff(f"api/peers-by-interface?interface={selected_interface}")
     if "error" in response:
-        await update.message.reply_text(f"❌ fetching peers error: {response['error']}")
+        await update.message.reply_text(f"❌ Error retrieving peers: {response['error']}")
         return ConversationHandler.END
 
     peers = response.get("peers", [])
     matched_peers = [peer for peer in peers if peer_name.lower() in peer["peer_name"].lower()]
 
     if not matched_peers:
-        await update.message.reply_text(f"No matching peers found: **{peer_name}**.")
-        return SEARCH_PEER
+        await update.message.reply_text(f"No peer found matching **{peer_name}**.")
+        return STATE_SEARCH_PEER
 
     keyboard = [[InlineKeyboardButton(peer["peer_name"], callback_data=f"edit_{peer['peer_name']}")] for peer in matched_peers]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Select a peer to edit:", reply_markup=reply_markup)
-    return SELECT_PEER_TO_EDIT
+    return STATE_SELECT_PEER_TO_EDIT
+
 
 async def select_peer_to_edit(update: Update, context: CallbackContext):
     query = update.callback_query
@@ -2540,7 +2583,7 @@ async def select_peer_to_edit(update: Update, context: CallbackContext):
     response = await api_stuff(f"api/peers-by-interface?interface={selected_interface}")
     peers = response.get("peers", [])
     peer_data = next((peer for peer in peers if peer["peer_name"] == selected_peer), None)
-    
+
     if not peer_data:
         await query.message.reply_text(f"❌ Peer not found: {selected_peer}")
         return ConversationHandler.END
@@ -2553,14 +2596,14 @@ async def select_peer_to_edit(update: Update, context: CallbackContext):
         f"{expiry_time.get('hours', 0)} hours, {expiry_time.get('minutes', 0)} minutes"
     )
 
-    peer_name = peer_data.get("peer_name", "Unnamed Peer")
+    peer_name = peer_data.get("peer_name", "Unnamed peer")
     interface_name = selected_interface
 
     keyboard = [
-        [InlineKeyboardButton("📝 Edit Data Limit", callback_data="edit_data_limit")],
+        [InlineKeyboardButton("📝 Edit data limit", callback_data="edit_data_limit")],
         [InlineKeyboardButton("🌐 Edit DNS", callback_data="edit_dns")],
-        [InlineKeyboardButton("⏳ Edit Expiry Time", callback_data="edit_expiry_time")],
-        [InlineKeyboardButton("🔙 Back to Interface Selection", callback_data="edit_peer")],
+        [InlineKeyboardButton("⏳ Edit expiry time", callback_data="edit_expiry_time")],
+        [InlineKeyboardButton("🔙 Back to select interface", callback_data="edit_peer")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -2575,7 +2618,8 @@ async def select_peer_to_edit(update: Update, context: CallbackContext):
         reply_markup=reply_markup,
         parse_mode="Markdown"
     )
-    return EDIT_OPTION
+    return STATE_EDIT_OPTION
+
 
 async def edit_data_limit(update: Update, context: CallbackContext):
     await update.callback_query.answer()
@@ -2584,46 +2628,43 @@ async def edit_data_limit(update: Update, context: CallbackContext):
     current_data_limit = peer_data.get("limit", "Unknown")
 
     await update.callback_query.message.reply_text(
-        f"Current Data Limit: **{current_data_limit}**\n"
-        "✏️ Enter the new **data limit** for the peer (e.g., `500MiB` or `1GiB`):",
+        f"Current data limit: **{current_data_limit}**\n"
+        "✏️ Enter the new data limit for the peer (e.g., `500MiB` or `1GiB`):",
         parse_mode="Markdown"
     )
-    return SET_DATA_LIMIT
+    return STATE_SET_DATA_LIMIT
 
 
 async def set_data_limit(update: Update, context: CallbackContext):
     data_limit = update.message.text.strip()
     if not re.match(r"^\d+(MiB|GiB)$", data_limit):
-        await update.message.reply_text("❌ wrong data limit. use  `500MiB` or `1GiB`.")
-        return SET_DATA_LIMIT
+        await update.message.reply_text("❌ Invalid data limit format. Use `500MiB` or `1GiB`.")
+        return STATE_SET_DATA_LIMIT
 
     context.user_data["new_data_limit"] = data_limit
-    await update.message.reply_text("Data limit updated. Proceeding to save changes..")
+    await update.message.reply_text("Data limit updated. Saving changes...")
     await save_peer_changes(update, context)
     return ConversationHandler.END
+
 
 async def edit_dns(update: Update, context: CallbackContext):
-    await update.callback_query.answer()
-    await update.callback_query.message.reply_text(
-        "✏️ Enter the new **DNS** for the peer (e.g., `1.1.1.1` or `8.8.8.8`). Separate multiple DNS servers with commas:",
-        parse_mode="Markdown"
-    )
-    return SET_DNS
+    if update.callback_query:
+        await update.callback_query.answer()
+        await update.callback_query.message.reply_text(
+            "✏️ *Please enter the new DNS addresses:*",
+            parse_mode="Markdown"
+        )
+        return STATE_SET_DNS
 
-async def set_dns(update: Update, context: CallbackContext):
-    dns = update.message.text.strip()
-    if not all(
-        re.match(r"^\d{1,3}(\.\d{1,3}){3}$", dns_entry) or
-        re.match(r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", dns_entry)
-        for dns_entry in dns.split(",")
-    ):
-        await update.message.reply_text("❌ wrong DNS format. use valid IP addresses or domain names.")
-        return SET_DNS
+    if update.message:
+        dns = update.message.text.strip()
+        context.user_data["new_dns"] = dns
 
-    context.user_data["new_dns"] = dns
-    await update.message.reply_text("DNS updated. saving changes..")
-    await save_peer_changes(update, context)
-    return ConversationHandler.END
+        await update.message.reply_text("DNS addresses updated.")
+
+        await save_peer_changes(update, context)
+        return ConversationHandler.END
+
 
 async def edit_expiry_time(update: Update, context: CallbackContext):
     await update.callback_query.answer()
@@ -2636,51 +2677,60 @@ async def edit_expiry_time(update: Update, context: CallbackContext):
     )
 
     await update.callback_query.message.reply_text(
-        f"Current Expiry Time: **{current_expiry}**\n"
-        "✏️ Enter the new **expiry time in days** (Example : `10`):",
+        f"Current expiry time: **{current_expiry}**\n"
+        "✏️ Enter the new expiry time in days (e.g., `10`):",
         parse_mode="Markdown"
     )
-    return SET_EXPIRY_TIME
+    return STATE_SET_EXPIRY_TIME
 
 
 async def set_expiry_time(update: Update, context: CallbackContext):
     expiry_days = update.message.text.strip()
     if not expiry_days.isdigit() or int(expiry_days) <= 0:
-        await update.message.reply_text("❌ Wrong value. Please enter a positive number of days.")
-        return SET_EXPIRY_TIME
+        await update.message.reply_text("❌ Invalid value. Please enter a valid number of days.")
+        return STATE_SET_EXPIRY_TIME
 
     context.user_data["new_expiry_days"] = int(expiry_days)
-    await update.message.reply_text("Expiry time updated. saving changes..")
+    await update.message.reply_text("Expiry time updated. Saving changes...")
     await save_peer_changes(update, context)
     return ConversationHandler.END
 
+
 async def save_peer_changes(update: Update, context: CallbackContext):
     peer_name = context.user_data["selected_peer"]
-    interface = context.user_data["selected_interface"]
+    selected_interface = context.user_data["selected_interface"]
+
+    new_expiry_days = context.user_data.get("new_expiry_days", 0)
+    peer_data = context.user_data.get("selected_peer_data", {})
+    expiry_time = peer_data.get("expiry_time", {})
+
+    expiry_time["days"] = new_expiry_days
 
     payload = {
         "peerName": peer_name,
         "dataLimit": context.user_data.get("new_data_limit"),
         "dns": context.user_data.get("new_dns"),
-        "expiryDays": context.user_data.get("new_expiry_days", 0),
-        "expiryMonths": 0,
-        "expiryHours": 0,
-        "expiryMinutes": 0,
+        "expiryDays": new_expiry_days,
+        "expiryMonths": expiry_time.get("months", 0),
+        "expiryHours": expiry_time.get("hours", 0),
+        "expiryMinutes": expiry_time.get("minutes", 0),
+        "configFile": f"{selected_interface}.conf",  
     }
 
     payload = {key: value for key, value in payload.items() if value is not None}
 
+    print(f"Sending API request with payload: {payload}")
+
     response = await api_stuff("api/edit-peer", method="POST", data=payload)
     if "error" in response:
-        await update.message.reply_text(f"❌ saving changes error: {response['error']}")
+        await update.message.reply_text(f"❌ Error saving changes: {response['error']}")
     else:
-        await update.message.reply_text("✅ Peer updated successfully!")
+        await update.message.reply_text("✅ User successfully updated!")
 
-        keyboard = [
-                [InlineKeyboardButton("🔙 Back to Peers Menu", callback_data="peers_menu")],
-                ]
+        keyboard = [[InlineKeyboardButton("🔙 Back to the peers list", callback_data="peers_menu")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text("Choose your next action:", reply_markup=reply_markup)
+        await update.message.reply_text("Please choose your next action:", reply_markup=reply_markup)
+
 
 
 async def block_unblock_peer(update: Update, context: CallbackContext):
@@ -2765,7 +2815,7 @@ async def fetch_config(update: Update, context: CallbackContext):
 
     config_name = context.user_data.get("config_name")
     if not config_name:
-        await update.message.reply_text("❌ Configuration not selected. Please start again.")
+        await update.message.reply_text("❌ Config not selected. Please start again.")
         return ConversationHandler.END
 
     response = await api_stuff(f"api/peers?config={config_name}&page=1&limit=50")
@@ -3068,21 +3118,21 @@ def main():
     peer_edit_stuff = ConversationHandler(
     entry_points=[CallbackQueryHandler(edit_peer_init, pattern="edit_peer")],
     states={
-        SELECT_INTERFACE: [CallbackQueryHandler(edit_select_interface, pattern="edit_select_interface_.*")],
-        SELECT_PEER_OR_SEARCH: [
+        STATE_SELECT_INTERFACE: [CallbackQueryHandler(edit_select_interface, pattern="edit_select_interface_.*")],
+        STATE_SELECT_PEER_OR_SEARCH: [
             CallbackQueryHandler(select_peer_to_edit, pattern="edit_.*"),
             CallbackQueryHandler(search_peername, pattern="search_peer_name"),
         ],
-        SEARCH_PEER: [MessageHandler(filters.TEXT & ~filters.COMMAND, filter_peersname)],
-        SELECT_PEER_TO_EDIT: [CallbackQueryHandler(select_peer_to_edit, pattern="edit_.*")],
-        EDIT_OPTION: [
+        STATE_SEARCH_PEER: [MessageHandler(filters.TEXT & ~filters.COMMAND, filter_peersname)],
+        STATE_SELECT_PEER_TO_EDIT: [CallbackQueryHandler(select_peer_to_edit, pattern="edit_.*")],
+        STATE_EDIT_OPTION: [
             CallbackQueryHandler(edit_data_limit, pattern="edit_data_limit"),
             CallbackQueryHandler(edit_dns, pattern="edit_dns"),
             CallbackQueryHandler(edit_expiry_time, pattern="edit_expiry_time"),
         ],
-        SET_DATA_LIMIT: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_data_limit)],
-        SET_DNS: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_dns)],
-        SET_EXPIRY_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_expiry_time)],
+        STATE_SET_DATA_LIMIT: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_data_limit)],
+        STATE_SET_DNS: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_dns)],
+        STATE_SET_EXPIRY_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_expiry_time)],
     },
     fallbacks=[CallbackQueryHandler(edit_peer_init, pattern="edit_peer")],
     allow_reentry=True,
