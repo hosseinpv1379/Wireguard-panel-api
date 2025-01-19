@@ -285,7 +285,7 @@ peer_schema = {
             "type": "string",
             "format": "ipv4"
         },
-        "dataLimit": {
+        "limit": {  
             "type": "string",
             "pattern": r"^\d+(MiB|GiB)$"
         },
@@ -302,7 +302,7 @@ peer_schema = {
         "mtu": {"type": "integer", "minimum": 0},
         "persistentKeepalive": {"type": "integer", "minimum": 0}
     },
-    "required": ["peerName", "peerIp", "dataLimit"],
+    "required": ["peerName", "peerIp", "limit"],  
     "additionalProperties": False
 }
 
@@ -1974,8 +1974,8 @@ def reset_traffic():
             message=f"The traffic statistics for the user '{peer_name}' in the file {config_name} have been reset."
         )
     except Exception as e:
-        print(f"Error in resetting traffic: {e}")
-        return jsonify(error=f"Error in resetting traffic: {e}"), 500
+        print(f"error in resetting traffic: {e}")
+        return jsonify(error=f"error in resetting traffic: {e}"), 500
 
 
 @app.route("/api/reset-expiry", methods=["POST"])
@@ -2231,9 +2231,8 @@ def delete_template():
         return jsonify({"error": f"Couldn't delete file: {str(e)}"}), 500
 
 
-@app.route('/api/bot-peer-details', methods=['GET'])
-def get_peer_details_for_bot():
-
+@app.route('/api/bot-peer-details-fa', methods=['GET'])
+def get_peer_details_for_bot_fa():
     peer_name = request.args.get('peerName')
     config_name = request.args.get('configName')
 
@@ -2256,6 +2255,83 @@ def get_peer_details_for_bot():
         if not peer_ip:
             return jsonify({"error": "Invalid or missing peer IP"}), 400
 
+        app.logger.debug(f"Peer data: {peer}")
+
+        qr_code = (
+            f"[Interface]\n"
+            f"PrivateKey = {peer.get('private_key', 'YOUR_PRIVATE_KEY')}\n"
+            f"Address = {peer_ip}/32\n"
+            f"DNS = {peer.get('dns', '1.1.1.1')}\n\n"
+            f"[Peer]\n"
+            f"PublicKey = {peer.get('public_key', 'YOUR_PUBLIC_KEY')}\n"
+            f"AllowedIPs = 0.0.0.0/0, ::/0\n"
+            f"PersistentKeepalive = {peer.get('persistent_keepalive', 25)}"
+        )
+
+        created_at_str = peer.get("created_at", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"))
+        created_at = datetime.strptime(created_at_str, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+        expiry_days = peer.get("expiry_days", 30)
+        expiry = created_at + timedelta(days=expiry_days)
+        now = datetime.now(timezone.utc)
+
+        expiry_human = (
+            f"{(expiry - now).days} روز باقی مانده" if (expiry - now).total_seconds() > 0 else "منقضی"
+        )
+
+        data_limit = peer.get('limit', 'N/A')
+        used_data = peer.get('used', 0)
+        remaining_data = peer.get('remaining', 0)
+
+        app.logger.debug(f"Data limit: {data_limit}, Used data: {used_data}, Remaining data: {remaining_data}")
+
+        peer_details = {
+            "peer_name": peer_name,
+            "peer_ip": peer_ip,
+            "qr_code": qr_code,
+            "dns": peer.get('dns', '1.1.1.1'),
+            "limit": data_limit,
+            "used": used_data,
+            "remaining": remaining_data,
+            "created_at": created_at_str,
+            "expiry": expiry.strftime("%Y-%m-%d %H:%M:%S"),
+            "expiry_human": expiry_human
+        }
+
+        app.logger.debug(f"Peer details to return: {peer_details}")
+
+        return jsonify(peer_details), 200
+
+    except Exception as e:
+        app.logger.error(f"error in fetching peer details for bot: {str(e)}")
+        return jsonify({"error": "Couldn't fetch peer details"}), 500
+
+
+@app.route('/api/bot-peer-details', methods=['GET'])
+def get_peer_details_for_bot():
+    peer_name = request.args.get('peerName')
+    config_name = request.args.get('configName')
+
+    if not peer_name:
+        return jsonify({"error": "Peer name is required"}), 400
+
+    if not config_name:
+        return jsonify({"error": "Config name is required"}), 400
+
+    try:
+        peers = load_peers_from_json(config_name)
+        if not peers:
+            return jsonify({"error": f"No peers found for config '{config_name}'"}), 404
+
+        peer = next((p for p in peers if p["peer_name"] == peer_name), None)
+        if not peer:
+            return jsonify({"error": f"Peer '{peer_name}' not found"}), 404
+
+        peer_ip = peer.get('peer_ip', None)
+        if not peer_ip:
+            return jsonify({"error": "Invalid or missing peer IP"}), 400
+
+        app.logger.debug(f"Peer data: {peer}")
+
         qr_code = (
             f"[Interface]\n"
             f"PrivateKey = {peer.get('private_key', 'YOUR_PRIVATE_KEY')}\n"
@@ -2277,28 +2353,33 @@ def get_peer_details_for_bot():
             f"{(expiry - now).days} days remaining" if (expiry - now).total_seconds() > 0 else "Expired"
         )
 
+        data_limit = peer.get('limit', 'N/A')
+        used_data = peer.get('used', 0)
+        remaining_data = peer.get('remaining', 0)
+
+        app.logger.debug(f"Data limit: {data_limit}, Used data: {used_data}, Remaining data: {remaining_data}")
+
         peer_details = {
             "peer_name": peer_name,
             "peer_ip": peer_ip,
             "qr_code": qr_code,
             "dns": peer.get('dns', '1.1.1.1'),
-            "limit": peer.get('limit', 'N/A'),
-            "used": peer.get('used', 0),
-            "remaining": peer.get('remaining', 0),
+            "limit": data_limit,
+            "used": used_data,
+            "remaining": remaining_data,
             "created_at": created_at_str,
             "expiry": expiry.strftime("%Y-%m-%d %H:%M:%S"),
             "expiry_human": expiry_human
         }
 
+        app.logger.debug(f"Peer details to return: {peer_details}")
+
         return jsonify(peer_details), 200
 
     except Exception as e:
-        app.logger.error(f"Error in fetching peer details for bot: {str(e)}")
+        app.logger.error(f"error in fetching peer details for bot: {str(e)}")
         return jsonify({"error": "Couldn't fetch peer details"}), 500
-
-
-
-
+    
 @app.route("/api/block-peer", methods=["POST"])
 def block_peer():
     try:
@@ -3771,12 +3852,7 @@ def create_peer():
         if not re.match(r'^[a-zA-Z0-9_-]+\.conf$', config_file):
             return jsonify({"error": "Wrong config file name."}), 400
 
-        dns = data.get('dns') or "1.1.1.1"
-        if dns:
-            dns_list = dns.split(",")
-            for dns_entry in dns_list:
-                if not re.match(r'^\d{1,3}(\.\d{1,3}){3}$', dns_entry) and not re.match(r'^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', dns_entry):
-                    return jsonify({"error": "Wrong DNS value. Must be valid IP addresses or domain names."}), 400
+        dns = data.get('dns') or "1.1.1.1, 1.0.0.1"
 
         expiry_days = data.get('expiryDays', 0)
         expiry_months = int(data.get("expiryMonths") or 0)
@@ -4068,6 +4144,39 @@ def peer_details():
         config_file=config_file,
         token=token
     )
+
+@app.route("/api/obt-peer-botdetails", methods=["GET"])
+def obt_peerbot_details():
+    peer_name = request.args.get("peer_name")
+    config_file = request.args.get("config_file")
+
+    if not peer_name or not config_file:
+        return jsonify({"error": "Peer name and config file are required."}), 400
+
+    try:
+        peers_file = obtain_peers_file(config_file)
+        peers_metadata = load_peers_from_json(peers_file)
+
+        peer = next((p for p in peers_metadata if p["peer_name"] == peer_name), None)
+
+        if not peer:
+            return jsonify({"error": f"Peer with name '{peer_name}' not found in {config_file}."}), 404
+
+        peer_details = {
+            "peer_name": peer["peer_name"],
+            "limit": peer.get("limit", "N/A"),
+            "used": peer.get("used", 0),
+            "remaining": peer.get("remaining", 0),
+            "expiry_time": peer.get("expiry_time", {}),
+            "status": "active" if not peer.get("monitor_blocked") and not peer.get("expiry_blocked") else "inactive",
+        }
+
+        return jsonify(peer_details)
+
+    except Exception as e:
+        print(f"Error retrieving peer details: {e}")
+        return jsonify({"error": f"An error occurred while fetching peer details: {str(e)}"}), 500
+
 
 @app.route('/api/peer-detailz', methods=['GET'])
 def api_peer_details():
@@ -4381,29 +4490,58 @@ def reset_peer_traffic(interface, public_key, peer_ip=None):
 
         wg_path = "wg"  
 
-        subprocess.run([wg_path, "set", interface, "peer", public_key, "remove"], check=True)
-        print(f"Peer {public_key} removed from {interface}, resetting counters.")
+        config_file = f"/etc/wireguard/{interface}.conf"
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            backup_file = f"{tmp_dir}/peer_backup.conf"
+
+            with open(config_file, "r") as config:
+                lines = config.readlines()
+
+            peer_config = []
+            in_peer_section = False
+
+            for line in lines:
+                if f"PublicKey = {public_key}" in line:
+                    in_peer_section = True
+                if in_peer_section:
+                    peer_config.append(line)
+                if in_peer_section and line.strip() == "":
+                    break  
+
+            if peer_config:
+                with open(backup_file, "w") as backup:
+                    backup.writelines(peer_config)
+
+                print(f"Backup of peer {public_key} saved to {backup_file}.")
+            else:
+                print(f"Peer {public_key} not found in {config_file}. Skipping backup.")
+
+            subprocess.run([wg_path, "set", interface, "peer", public_key, "remove"], check=True)
+            print(f"Peer {public_key} removed from {interface}, resetting counters.")
+
+            if peer_ip:
+                sanitized_peer_ip = sanitize_ip(peer_ip)
+                subprocess.run(
+                    [wg_path, "set", interface, "peer", public_key, "allowed-ips", f"{sanitized_peer_ip}/32"],
+                    check=True
+                )
+                print(f"Peer {public_key} re-added to {interface} with allowed IP {sanitized_peer_ip}. Traffic counters reset.")
+            else:
+                if peer_config:
+                    with open(config_file, "a") as config:
+                        config.writelines(peer_config)
+                    print(f"Peer {public_key} re-added to {interface} with backed-up configuration. Traffic counters reset.")
+                else:
+                    print(f"No peer configuration found for {public_key}. Cannot re-add.")
+
     except subprocess.CalledProcessError as e:
-        print(f"Peer {public_key} not found in {interface}. Proceeding with reset. Error: {e}")
+        print(f"error checking/removing peer {public_key} in {interface}: {e}")
+        return
     except ValueError as e:
         print(f"Sanitization error: {e}")
         return
 
-    if peer_ip:
-        try:
-            sanitized_peer_ip = sanitize_ip(peer_ip)
-
-            subprocess.run(
-                [wg_path, "set", interface, "peer", public_key, "allowed-ips", f"{sanitized_peer_ip}/32"],
-                check=True
-            )
-            print(f"Peer {public_key} re-added to {interface} with allowed IP {sanitized_peer_ip}. Traffic counters reset.")
-        except subprocess.CalledProcessError as e:
-            print(f"error in re-adding peer {public_key} to {interface}: {e}")
-        except ValueError as e:
-            print(f"Sanitization error: {e}")
-    else:
-        print(f"No peer IP provided. Peer {public_key} not re-added to {interface}.")
 
 
 def parse_traffic(peer_ip, public_key):
@@ -4632,7 +4770,6 @@ def obtain_metrics():
         ), 500
 
 
-
 @app.route("/api/edit-peer", methods=["POST"])
 @limiter.limit("20 per minute")
 @validate_json(schema=edit_peer_schema)
@@ -4659,17 +4796,12 @@ def edit_peer():
                 return jsonify({"error": "Data limit must be between 1 and 1024 MiB/GiB."}), 400
 
         new_dns = data.get("dns")
-        if new_dns:
-            dns_list = new_dns.split(",")
-            for dns_entry in dns_list:
-                if (not re.match(r'^\d{1,3}(\.\d{1,3}){3}$', dns_entry)
-                        and not re.match(r'^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', dns_entry)):
-                    return jsonify({"error": "Wrong DNS value. Must be valid IP addresses or domain names."}), 400
 
         expiry_months = int(data.get("expiryMonths") or 0)
         expiry_days = int(data.get("expiryDays") or 0)
         expiry_hours = int(data.get("expiryHours") or 0)
         expiry_minutes = int(data.get("expiryMinutes") or 0)
+
         if expiry_months < 0 or expiry_days < 0 or expiry_hours < 0 or expiry_minutes < 0:
             return jsonify({"error": "Expiry times cannot be negative."}), 400
 
@@ -4687,17 +4819,18 @@ def edit_peer():
                 peer["dns"] = new_dns
 
             total_minutes = (
-                expiry_months * 30 * 24 * 60 +
-                expiry_days * 24 * 60 +
-                expiry_hours * 60 +
-                expiry_minutes
+                expiry_months * 30 * 24 * 60 +  
+                expiry_days * 24 * 60 +        
+                expiry_hours * 60 +            
+                expiry_minutes                
             )
+
             if total_minutes > 0:
                 peer["expiry_time"] = {
                     "months": expiry_months,
                     "days": expiry_days,
                     "hours": expiry_hours,
-                    "minutes": expiry_minutes,
+                    "minutes": expiry_minutes
                 }
                 peer["remaining_time"] = total_minutes
 
@@ -4708,6 +4841,7 @@ def edit_peer():
     except Exception as e:
         print(f"error in editing peer: {e}")
         return jsonify({"error": f"Couldn't update peer: {str(e)}"}), 500
+
 
 
 
