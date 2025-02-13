@@ -282,7 +282,7 @@ api_documentation:
           {
             "message": "TLS is enabled but cert_path or key_path not provided."
           }
-api_documentation:
+
   - endpoint: "/api/update-user"
     method: "POST"
     description: |
@@ -614,7 +614,7 @@ api_documentation:
           {
             "error": "Backup not found."
           }
-api_documentation:
+
   - endpoint: "/api/user-info"
     method: "GET"
     description: |
@@ -1013,7 +1013,7 @@ api_documentation:
           {
             "error": "Peer name is required."
           }
-api_documentation:
+
   - endpoint: "/api/generate-template"
     method: "POST"
     description: |
@@ -1133,7 +1133,7 @@ api_documentation:
             "error": "Filename is required."
           }
 
-api_documentation:
+
   - endpoint: "/api/bot-peer-details-fa"
     method: "GET"
     description: |
@@ -1272,7 +1272,6 @@ api_documentation:
             "error": "Config name is required"
           }
 
-api_documentation:
   - endpoint: "/api/block-peer"
     method: "POST"
     description: |
@@ -1390,7 +1389,7 @@ api_documentation:
           {
             "error": "Peer name is required."
           }
-api_documentation:
+
   - endpoint: "/api/export-peer-qr"
     method: "GET"
     description: |
@@ -1477,7 +1476,6 @@ api_documentation:
             "error": "Peer name is required to export config."
           }
 
-api_documentation:
   - endpoint: "/api/qr-code"
     method: "GET"
     description: |
@@ -1608,7 +1606,7 @@ api_documentation:
           {
             "error": "Config file `db/all_peers.json` not found."
           }
-api_documentation:
+
   - endpoint: "/api/export-peer-telegram"
     method: "GET"
     description: |
@@ -1741,7 +1739,7 @@ api_documentation:
           {
             "error": "Peer name and config file are required"
           }
-api_documentation:
+
   - endpoint: "/api/get-custom-ip"
     method: "GET"
     description: |
@@ -1819,7 +1817,7 @@ api_documentation:
           {
             "error": "Custom IP or Subdomain is required"
           }
-api_documentation:
+
   - endpoint: "/api/config-details"
     method: "GET"
     description: |
@@ -1979,7 +1977,7 @@ api_documentation:
             "message": "Peer peer1 in wg0.conf has been enabled successfully.",
             "blocked": false
           }
-api_documentation:
+
   - endpoint: "/api/available-ips"
     method: "GET"
     description: |
@@ -2250,7 +2248,7 @@ api_documentation:
           {
             "message": "Logs cleared successfully"
           }
-api_documentation:
+
   - endpoint: "/api/create-peer"
     method: "POST"
     description: |
