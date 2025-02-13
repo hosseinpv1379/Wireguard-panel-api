@@ -1,0 +1,2988 @@
+api_documentation:
+  - endpoint: "/api/wireguard-interfaces"
+    method: "GET"
+    description: |
+      This endpoint retrieves a list of available Wireguard configuration files
+      from the `/etc/wireguard` directory. It returns a list of interfaces
+      that are available as `.conf` files, which are typically used to configure Wireguard peers.
+    request:
+      parameters: None
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the list of Wireguard interfaces is returned."
+          example: |
+            {
+              "interfaces": [
+                "wg0.conf",
+                "wg1.conf"
+              ]
+            }
+        - code: 404
+          description: "Not Found - The Wireguard config directory (`/etc/wireguard`) does not exist."
+          example: |
+            {
+              "error": "Wireguard config directory not found."
+            }
+        - code: 500
+          description: "Internal Server Error - A general error occurred during the process of retrieving the Wireguard interfaces."
+          example: |
+            {
+              "error": "An unexpected error occurred: <error message>"
+            }
+    usage_examples:
+      - request: "curl -X GET http://your-server-url/api/wireguard-interfaces"
+        response: |
+          {
+            "interfaces": [
+              "wg0.conf",
+              "wg1.conf"
+            ]
+          }
+      - request: "curl -X GET http://your-server-url/api/wireguard-interfaces"
+        response: |
+          {
+            "error": "Wireguard config directory not found."
+          }
+      - request: "curl -X GET http://your-server-url/api/wireguard-interfaces"
+        response: |
+          {
+            "error": "unexpected error occurred: [error details]"
+          }
+    error_handling:
+      - FileNotFoundError: "If the Wireguard configuration directory (`/etc/wireguard`) does not exist, a `404 Not Found` response is returned."
+      - GeneralException: "For other errors, a `500 Internal Server Error` is returned with the error message."
+
+  - endpoint: "/api/health"
+    method: "GET"
+    description: |
+      This endpoint checks the health of the application or service by returning a simple status message.
+      It is typically used to monitor the availability of the service.
+    request:
+      parameters: None
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The service is running, and the status message is returned."
+          example: |
+            {
+              "status": "running"
+            }
+    usage_examples:
+      - request: "curl -X GET http://your-server-url/api/health"
+        response: |
+          {
+            "status": "running"
+          }
+    notes: |
+      This endpoint can be used in health check stuff (e.g: telegram bot, monitoring tools) to ensure the application is up and operational.
+      It is often used in server monitoring systems to detect if the service is running properly.
+
+  - endpoint: "/api/backup-status"
+    method: "GET"
+    description: |
+      This endpoint checks the status of the latest backup operation. It returns a flag indicating if a new backup was created recently.
+    request:
+      parameters: None
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the backup status is returned."
+          example: |
+            {
+              "new_backup": true
+            }
+        - code: 200
+          description: "OK - The request was successful, but no new backup was created."
+          example: |
+            {
+              "new_backup": false
+            }
+    usage_examples:
+      - request: "curl -X GET http://your-server-url/api/backup-status"
+        response: |
+          {
+            "new_backup": true
+          }
+      - request: "curl -X GET http://your-server-url/api/backup-status"
+        response: |
+          {
+            "new_backup": false
+          }
+
+  - endpoint: "/api/stuff"
+    method: "GET"
+    description: |
+      This endpoint checks the status of two services: `xray` and `warp`. It returns the status of both services, indicating whether they are active or not.
+    request:
+      parameters: None
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the status of `xray` and `warp` is returned."
+          example: |
+            {
+              "warp": true,
+              "xray": true
+            }
+        - code: 200
+          description: "OK - The request was successful, but one or both services may be inactive."
+          example: |
+            {
+              "warp": false,
+              "xray": true
+            }
+    usage_examples:
+      - request: "curl -X GET http://your-server-url/api/stuff"
+        response: |
+          {
+            "warp": true,
+            "xray": true
+          }
+      - request: "curl -X GET http://your-server-url/api/stuff"
+        response: |
+          {
+            "warp": false,
+            "xray": true
+          }
+
+  - endpoint: "/api/web-config"
+    method: "GET"
+    description: |
+      This endpoint retrieves the web configuration settings for the Flask application. It returns the port and TLS configuration from the app's config.
+    request:
+      parameters: None
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the web config is returned."
+          example: |
+            {
+              "port": 5000,
+              "tls": true
+            }
+        - code: 500
+          description: "Internal Server Error - The request failed due to a configuration issue."
+          example: |
+            {
+              "error": "Couldn't load web config: <error message>"
+            }
+    usage_examples:
+      - request: "curl -X GET http://your-server-url/api/web-config"
+        response: |
+          {
+            "port": 5000,
+            "tls": true
+          }
+      - request: "curl -X GET http://your-server-url/api/web-config"
+        response: |
+          {
+            "error": "Couldn't load web config: [error details]"
+          }
+
+  - endpoint: "/api/flask-config"
+    method: "GET"
+    description: |
+      This endpoint retrieves the Flask web application configuration from the `config.yaml` file, including the port and TLS settings.
+    request:
+      parameters: None
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the Flask configuration is returned."
+          example: |
+            {
+              "port": 5000,
+              "tls": true
+            }
+        - code: 404
+          description: "Not Found - The `flask` configuration was not found in the `config.yaml` file."
+          example: |
+            {
+              "message": "Flask config not found in config.yaml"
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while retrieving the Flask config."
+          example: |
+            {
+              "message": "error in retrieving Flask config: <error message>"
+            }
+    usage_examples:
+      - request: "curl -X GET http://your-server-url/api/flask-config"
+        response: |
+          {
+            "port": 5000,
+            "tls": true
+          }
+      - request: "curl -X GET http://your-server-url/api/flask-config"
+        response: |
+          {
+            "message": "Flask config not found in config.yaml"
+          }
+
+  - endpoint: "/api/update-flask-config"
+    method: "POST"
+    description: |
+      This endpoint updates the Flask web application configuration in the `config.yaml` file, including the port and TLS settings. It also handles the restarting of the `wireguard-panel` service if the port is changed.
+    request:
+      parameters: None
+      body:
+        - port: Integer (Port number for Flask application)
+        - tls: Boolean (TLS setting, true or false)
+        - cert_path: String (path to cert file)
+        - key_path: String (path to key file)
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the Flask configuration was updated."
+          example: |
+            {
+              "message": "Flask config updated successfully.",
+              "port": 5000,
+              "tls": true,
+              "service_restart": "wireguard-panel.service restarted successfully."
+            }
+        - code: 400
+          description: "Bad Request - Missing required fields or invalid values."
+          example: |
+            {
+              "message": "Both port and TLS settings are required."
+            }
+        - code: 500
+          description: "Internal Server Error - The request failed due to an error while updating the configuration or restarting the service."
+          example: |
+            {
+              "message": "Flask config updated, but failed to restart Wireguard-panel.service.",
+              "error": "<error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X POST http://your-server-url/api/update-flask-config \
+          -H "Content-Type: application/json" \
+          -d '{"port": 5001, "tls": true, "cert_path": "/path/cert", "key_path": "/path/key"}'
+        response: |
+          {
+            "message": "Flask config updated successfully.",
+            "port": 5001,
+            "tls": true,
+            "service_restart": "wireguard-panel.service restarted successfully."
+          }
+      - request: |
+          curl -X POST http://your-server-url/api/update-flask-config \
+          -H "Content-Type: application/json" \
+          -d '{"port": 5001, "tls": true}'
+        response: |
+          {
+            "message": "TLS is enabled but cert_path or key_path not provided."
+          }
+api_documentation:
+  - endpoint: "/api/update-user"
+    method: "POST"
+    description: |
+      This endpoint allows an authenticated user to update their username and password. 
+      Both the new username and password must be provided. The new username must not 
+      already exist in the database, and the user must be logged in to perform the update.
+    request:
+      parameters: None
+      body:
+        - username: String (New username to update)
+        - password: String (New password to update)
+      authentication: Required (User must be logged in)
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the username and password were updated."
+          example: |
+            {
+              "message": "Username and password updated successfully!"
+            }
+        - code: 400
+          description: "Bad Request - Missing required fields or invalid username."
+          example: |
+            {
+              "error": "Both username and password are required."
+            }
+        - code: 403
+          description: "Forbidden - The user is not logged in."
+          example: |
+            {
+              "error": "You must be logged in to update your account."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred during the update process."
+          example: |
+            {
+              "error": "error occurred updating the user."
+            }
+    usage_examples:
+      - request: |
+          curl -X POST http://your-server-url/api/update-user \
+          -H "Content-Type: application/json" \
+          -d '{"username": "newuser", "password": "newpassword"}'
+        response: |
+          {
+            "message": "Username and password updated successfully!"
+          }
+      - request: |
+          curl -X POST http://your-server-url/api/update-user \
+          -H "Content-Type: application/json" \
+          -d '{"username": "", "password": "newpassword"}'
+        response: |
+          {
+            "error": "Both username and password are required."
+          }
+
+  - endpoint: "/api/update-wireguard-config"
+    method: "POST"
+    description: |
+      This endpoint updates the configuration for a specified Wireguard configuration file. 
+      The user can specify new values for the port, MTU, and DNS settings, and these will 
+      be updated in the configuration file.
+    request:
+      parameters: None
+      body:
+        - config: String (Configuration file name)
+        - port: Integer (New listen port for Wireguard)
+        - mtu: Integer (New MTU value for Wireguard)
+        - dns: String (New DNS setting for Wireguard)
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the Wireguard configuration was updated."
+          example: |
+            {
+              "message": "Wireguard config updated successfully!"
+            }
+        - code: 400
+          description: "Bad Request - Missing required fields or invalid values."
+          example: |
+            {
+              "message": "Config name is required"
+            }
+        - code: 404
+          description: "Not Found - The specified configuration file was not found."
+          example: |
+            {
+              "message": "Configuration file '/etc/wireguard/config.conf' not found"
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while updating the configuration."
+          example: |
+            {
+              "message": "Couldn't update Wireguard config: <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X POST http://your-server-url/api/update-wireguard-config \
+          -H "Content-Type: application/json" \
+          -d '{"config": "wg0", "port": 51820, "mtu": 1420, "dns": "8.8.8.8"}'
+        response: |
+          {
+            "message": "Wireguard config updated successfully!"
+          }
+      - request: |
+          curl -X POST http://your-server-url/api/update-wireguard-config \
+          -H "Content-Type: application/json" \
+          -d '{"config": "wg0"}'
+        response: |
+          {
+            "message": "Config name is required"
+          }
+
+  - endpoint: "/api/backups"
+    method: "GET"
+    description: |
+      This endpoint lists all the manual backup files stored in the backup directory. 
+      It returns a list of backup file names that follow the `manual_*.backup.zip` naming sample.
+    request:
+      parameters: None
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the list of backups is returned."
+          example: |
+            {
+              "backups": [
+                "manual_20230101_120000.backup.zip",
+                "manual_20230201_130000.backup.zip"
+              ]
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while listing the backups."
+          example: |
+            {
+              "error": "Couldn't list backups: <error message>"
+            }
+    usage_examples:
+      - request: "curl -X GET http://your-server-url/api/backups"
+        response: |
+          {
+            "backups": [
+              "manual_20230101_120000.backup.zip",
+              "manual_20230201_130000.backup.zip"
+            ]
+          }
+      - request: "curl -X GET http://your-server-url/api/backups"
+        response: |
+          {
+            "error": "Couldn't list backups: <error message>"
+          }
+
+  - endpoint: "/api/create-backup"
+    method: "POST"
+    description: |
+      This endpoint creates a manual backup of the system. The backup includes Wireguard configuration files 
+      and the database. The backup is stored as a `.zip` file with a timestamped name in the backup directory.
+    request:
+      parameters: None
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the backup was created."
+          example: |
+            {
+              "message": "Backup created successfully as manual_20230101_120000.backup.zip"
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while creating the backup."
+          example: |
+            {
+              "error": "Couldn't create backup: <error message>"
+            }
+    usage_examples:
+      - request: "curl -X POST http://your-server-url/api/create-backup"
+        response: |
+          {
+            "message": "Backup created successfully as manual_20230101_120000.backup.zip"
+          }
+      - request: "curl -X POST http://your-server-url/api/create-backup"
+        response: |
+          {
+            "error": "Couldn't create backup: <error message>"
+          }
+
+  - endpoint: "/api/restore-automated-backup"
+    method: "POST"
+    description: |
+      This endpoint restores an automated backup (either from the "wireguard" or "db" folder). 
+      The backup file is copied to its respective directory (`Wireguard` configuration or database).
+    request:
+      parameters: None
+      body:
+        - folder: String (Folder to restore from, "wireguard" or "db")
+        - backupName: String (Backup file name to restore)
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the backup was restored."
+          example: |
+            {
+              "message": "Backup restored successfully."
+            }
+        - code: 400
+          description: "Bad Request - Missing folder or backup name, or wrong folder specified."
+          example: |
+            {
+              "error": "Folder and backup name are required."
+            }
+        - code: 404
+          description: "Not Found - The specified backup file is not found."
+          example: |
+            {
+              "error": "Backup not found."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while restoring the backup."
+          example: |
+            {
+              "error": "Couldn't restore automated backup: <error message>"
+            }
+    
+
+  - endpoint: "/api/delete-backup"
+    method: "DELETE"
+    description: |
+      This endpoint deletes a specified backup file from the backup directory. The backup is identified by 
+      its name and the folder in which it is located (either "wireguard", "db", or "root").
+    request:
+      parameters: None
+      body:
+        - name: String (Backup file name to delete)
+        - folder: String (Folder containing the backup, example, "wireguard" or "db")
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the backup was deleted."
+          example: |
+            {
+              "message": "Backup manual_20230101_120000.backup.zip deleted successfully."
+            }
+        - code: 400
+          description: "Bad Request - Missing backup name or folder."
+          example: |
+            {
+              "error": "Backup name is required."
+            }
+        - code: 404
+          description: "Not Found - The specified backup file is not found."
+          example: |
+            {
+              "error": "Backup not found."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while deleting the backup."
+          example: |
+            {
+              "error": "Couldn't delete backup: <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X DELETE http://your-server-url/api/delete-backup?name=manual_20230101_120000.backup.zip&folder=wireguard
+        response: |
+          {
+            "message": "Backup manual_20230101_120000.backup.zip deleted successfully."
+          }
+      - request: |
+          curl -X DELETE http://your-server-url/api/delete-backup?name=manual_20230101_120000.backup.zip
+        response: |
+          {
+            "error": "Backup name is required."
+          }
+
+  - endpoint: "/api/restore-backup"
+    method: "POST"
+    description: |
+      This endpoint restores a specified backup file from the backup directory. The backup is unpacked 
+      and restored to the appropriate directories (Wireguard configuration and database).
+    request:
+      parameters: None
+      body:
+        - backupName: String (Backup file name to restore)
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the backup was restored."
+          example: |
+            {
+              "message": "Backup manual_20230101_120000.backup.zip restored successfully."
+            }
+        - code: 400
+          description: "Bad Request - Invalid backup name or backup file not a valid archive."
+          example: |
+            {
+              "error": "Wrong backup name."
+            }
+        - code: 404
+          description: "Not Found - The specified backup file is not found."
+          example: |
+            {
+              "error": "Backup not found."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while restoring the backup."
+          example: |
+            {
+              "error": "Couldn't restore backup: <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X POST http://your-server-url/api/restore-backup \
+          -H "Content-Type: application/json" \
+          -d '{"backupName": "manual_20230101_120000.backup.zip"}'
+        response: |
+          {
+            "message": "Backup manual_20230101_120000.backup.zip restored successfully."
+          }
+      - request: |
+          curl -X POST http://your-server-url/api/restore-backup \
+          -H "Content-Type: application/json" \
+          -d '{"backupName": "invalid-backup.zip"}'
+        response: |
+          {
+            "error": "Backup not found."
+          }
+api_documentation:
+  - endpoint: "/api/user-info"
+    method: "GET"
+    description: |
+      This endpoint retrieves the information of the currently logged-in user. 
+      It returns the username of the user if they are logged in. If the user is not logged in, 
+      an error message is returned.
+    request:
+      parameters: None
+      authentication: Required (User must be logged in)
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the user information is returned."
+          example: |
+            {
+              "username": "john_doe"
+            }
+        - code: 401
+          description: "Unauthorized - The user is not logged in."
+          example: |
+            {
+              "error": "User not logged in"
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while retrieving the user information."
+          example: |
+            {
+              "error": "Couldn't load user info: <error message>"
+            }
+    usage_examples:
+      - request: "curl -X GET http://your-server-url/api/user-info"
+        response: |
+          {
+            "username": "Azumi"
+          }
+      - request: "curl -X GET http://your-server-url/api/user-info"
+        response: |
+          {
+            "error": "User not logged in"
+          }
+
+  - endpoint: "/api/auto-backups"
+    method: "GET"
+    description: |
+      This endpoint lists all the automated backup files stored in a specific folder. 
+      The folder must be specified as `wireguard` or `db`. It returns a list of backup files in that folder.
+    request:
+      parameters: 
+        - folder: String (The folder containing the backups. It must be either "wireguard" or "db")
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the list of automated backups is returned."
+          example: |
+            {
+              "backups": [
+                "auto_20230101_120000.backup.zip",  forgot the automatic name pattern(in automatic it separates wireguard and db backups)
+                "auto_20230201_130000.backup.zip"
+              ]
+            }
+        - code: 400
+          description: "Bad Request - Wrong folder specified."
+          example: |
+            {
+              "error": "Wrong folder specified."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while listing the automated backups."
+          example: |
+            {
+              "error": "Couldn't list backups: <error message>"
+            }
+    usage_examples:
+      - request: "curl -X GET http://your-server-url/api/auto-backups?folder=wireguard"
+        response: |
+          {
+            "backups": [
+              "auto_20230101_120000.backup.zip",
+              "auto_20230201_130000.backup.zip"
+            ]
+          }
+      - request: "curl -X GET http://your-server-url/api/auto-backups?folder=db"
+        response: |
+          {
+            "backups": [
+              "auto_20230101_120000.backup.zip",
+              "auto_20230201_130000.backup.zip"
+            ]
+          }
+
+  - endpoint: "/api/download-backup"
+    method: "GET"
+    description: |
+      This endpoint allows you to download a specified backup file. The backup name must be provided 
+      as a query parameter, and the file is returned as a downloadable attachment.
+    request:
+      parameters:
+        - name: String (The name of the backup file to download)
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the backup file is downloaded."
+          example: |
+            [Backup file as attachment]
+        - code: 400
+          description: "Bad Request - Missing backup name."
+          example: |
+            {
+              "error": "Backup name is required."
+            }
+        - code: 404
+          description: "Not Found - The specified backup file is not found."
+          example: |
+            {
+              "error": "Backup not found."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while downloading the backup."
+          example: |
+            {
+              "error": "Couldn't download backup: <error message>"
+            }
+    usage_examples:
+      - request: "curl -X GET http://your-server-url/api/download-backup?name=manual_20230101_120000.backup.zip"
+        response: |
+          [Backup file as attachment]
+      - request: "curl -X GET http://your-server-url/api/download-backup?name="
+        response: |
+          {
+            "error": "Backup name is required."
+          }
+
+  - endpoint: "/api/restore-automated-backup"
+    method: "POST"
+    description: |
+      This endpoint restores an automated backup from the specified folder (`wireguard` or `db`). 
+      It copies the backup files to their respective directories (Wireguard or database).
+    request:
+      parameters: None
+      body:
+        - folder: String (Folder containing the backup to restore from. It must be either "wireguard" or "db")
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the backup was restored."
+          example: |
+            {
+              "message": "Backup from wireguard restored successfully."
+            }
+        - code: 400
+          description: "Bad Request - Wrong folder specified."
+          example: |
+            {
+              "error": "Wrong folder specified. Use 'wireguard' or 'db'."
+            }
+        - code: 404
+          description: "Not Found - The specified backup folder does not exist."
+          example: |
+            {
+              "error": "Backup folder wireguard does not exist."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while restoring the backup."
+          example: |
+            {
+              "error": "Couldn't restore automated backup: <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X POST http://your-server-url/api/restore-automated-backup \
+          -H "Content-Type: application/json" \
+          -d '{"folder": "wireguard"}'
+        response: |
+          {
+            "message": "Backup from wireguard restored successfully."
+          }
+      - request: |
+          curl -X POST http://your-server-url/api/restore-automated-backup \
+          -H "Content-Type: application/json" \
+          -d '{"folder": "db"}'
+        response: |
+          {
+            "message": "Backup from db restored successfully."
+          }
+
+  - endpoint: "/api/interface-status"
+    method: "GET"
+    description: |
+      This endpoint checks the status of the Wireguard interface by running the `wg show` command. 
+      It returns the status of the interface, whether it is "up" or "down".
+    request:
+      parameters: None
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the interface status is returned."
+          example: |
+            {
+              "status": "up"
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while checking the interface status."
+          example: |
+            {
+              "error": "wg command not found or not executable at wg"
+            }
+        - code: 200
+          description: "OK - The interface is down, and an error message is returned."
+          example: |
+            {
+              "status": "down",
+              "error": "stderr message"
+            }
+    usage_examples:
+      - request: "curl -X GET http://your-server-url/api/interface-status"
+        response: |
+          {
+            "status": "up"
+          }
+      - request: "curl -X GET http://your-server-url/api/interface-status"
+        response: |
+          {
+            "status": "down",
+            "error": "stderr message"
+          }
+
+  - endpoint: "/api/toggle-interface"
+    method: "POST"
+    description: |
+      This endpoint allows the user to toggle the state of a Wireguard interface. 
+      The user can set the interface "up" or "down" by specifying the action in the query parameter.
+    request:
+      parameters:
+        - action: String (The action to perform, either "up" or "down")
+        - config: String (The Wireguard configuration file name, default is 'wg0.conf')
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the interface was toggled."
+          example: |
+            {
+              "success": true,
+              "message": "Interface 'wg0' has been turned up."
+            }
+        - code: 400
+          description: "Bad Request - The action provided is invalid (must be 'up' or 'down')."
+          example: |
+            {
+              "error": "Wrong action. Must be 'up' or 'down'."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while toggling the interface."
+          example: |
+            {
+              "error": "An unexpected error occurred."
+            }
+    usage_examples:
+      - request: |
+          curl -X POST http://your-server-url/api/toggle-interface?action=up&config=wg0.conf
+        response: |
+          {
+            "success": true,
+            "message": "Interface 'wg0' has been turned up."
+          }
+      - request: |
+          curl -X POST http://your-server-url/api/toggle-interface?action=down&config=wg0.conf
+        response: |
+          {
+            "success": true,
+            "message": "Interface 'wg0' has been turned down."
+          }
+      - request: |
+          curl -X POST http://your-server-url/api/toggle-interface?action=invalid&config=wg0.conf
+        response: |
+          {
+            "error": "Wrong action. Must be 'up' or 'down'."
+          }
+  - endpoint: "/api/reset-traffic"
+    method: "POST"
+    description: |
+      This endpoint resets the traffic statistics (used, remaining, received, sent) for a specified peer.
+      The peer's traffic is reset to zero, and the usage limits are re-applied.
+      It removed the public key of the specific peer and restore the backup which reset the traffic and
+      restore the peer configuration as well.
+    request:
+      parameters: None
+      body:
+        - peerName: String (The name of the peer whose traffic statistics will be reset)
+        - config: String (Optional, the configuration file name. Default is 'wg0.conf')
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The traffic statistics for the specified peer were successfully reset."
+          example: |
+            {
+              "success": true,
+              "message": "The traffic statistics for the user 'peer_name' in the file wg0.conf have been reset."
+            }
+        - code: 400
+          description: "Bad Request - The peer name is missing or invalid."
+          example: |
+            {
+              "error": "Peer name is required."
+            }
+        - code: 404
+          description: "Not Found - The specified peer was not found in the configuration file."
+          example: |
+            {
+              "error": "Peer 'peer_name' not found in wg0.conf."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while resetting the traffic."
+          example: |
+            {
+              "error": "error in resetting traffic: <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X POST http://your-server-url/api/reset-traffic \
+          -H "Content-Type: application/json" \
+          -d '{"peerName": "peer1", "config": "wg0.conf"}'
+        response: |
+          {
+            "success": true,
+            "message": "The traffic statistics for the user 'peer1' in the file wg0.conf have been reset."
+          }
+      - request: |
+          curl -X POST http://your-server-url/api/reset-traffic \
+          -H "Content-Type: application/json" \
+          -d '{"peerName": "peer1"}'
+        response: |
+          {
+            "error": "Peer name is required."
+          }
+
+  - endpoint: "/api/reset-expiry"
+    method: "POST"
+    description: |
+      This endpoint resets the expiry time for a specified peer. 
+      The peer's remaining time is recalculated based on the expiry time in the peer's configuration.
+      The peer configuration is inside db directory and inside the related json file.
+    request:
+      parameters: None
+      body:
+        - peerName: String (The name of the peer whose expiry time will be reset)
+        - config: String (Optional, the configuration file name. Default is 'wg0.conf')
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The expiry time for the specified peer was successfully reset."
+          example: |
+            {
+              "success": true,
+              "message": "Expiry time for peer 'peer_name' in wg0.conf has been reset."
+            }
+        - code: 400
+          description: "Bad Request - The peer name is missing or invalid."
+          example: |
+            {
+              "error": "Peer name is required."
+            }
+        - code: 404
+          description: "Not Found - The specified peer was not found in the configuration file."
+          example: |
+            {
+              "error": "Peer 'peer_name' not found in wg0.conf."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while resetting the expiry time."
+          example: |
+            {
+              "error": "error in resetting expiry: <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X POST http://your-server-url/api/reset-expiry \
+          -H "Content-Type: application/json" \
+          -d '{"peerName": "peer1", "config": "wg0.conf"}'
+        response: |
+          {
+            "success": true,
+            "message": "Expiry time for peer 'peer1' in wg0.conf has been reset."
+          }
+      - request: |
+          curl -X POST http://your-server-url/api/reset-expiry \
+          -H "Content-Type: application/json" \
+          -d '{"peerName": "peer1"}'
+        response: |
+          {
+            "error": "Peer name is required."
+          }
+api_documentation:
+  - endpoint: "/api/generate-template"
+    method: "POST"
+    description: |
+      This endpoint generates a Wireguard configuration template for a specified peer. 
+      The peer's information is retrieved from the corresponding configuration JSON file, and a configuration template 
+      along with a QR code data string is generated. The generated template is returned along with relevant details such as 
+      the peer's IP, data limit, expiry time, and other configuration parameters.
+    request:
+      parameters: None
+      body:
+        - peer_name: String (The name of the peer for which the template will be generated)
+        - config_name: String (The configuration file name associated with the peer)
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the template was generated."
+          example: |
+            {
+              "peer_name": "peer1",
+              "peer_ip": "192.168.1.2",
+              "data_limit": "1GB",
+              "expiry": "2 months, 5 days",
+              "qr_data": "[Interface]\nPrivateKey = abc123\nAddress = 192.168.1.2/32\nDNS = 8.8.8.8\nMTU = 1280\n\n[Peer]\nPublicKey = xyz456\nAllowedIPs = 0.0.0.0/0, ::/0\nEndpoint = server_ip:51820\nPersistentKeepalive = 25"
+            }
+        - code: 400
+          description: "Bad Request - The peer name or config name is missing or invalid."
+          example: |
+            {
+              "error": "Peer name and config name are required."
+            }
+        - code: 404
+          description: "Not Found - The specified peer or configuration file does not exist."
+          example: |
+            {
+              "error": "Peer 'peer_name' not found in config_name.json."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while generating the template."
+          example: |
+            {
+              "error": "Couldn't generate template: <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X POST http://your-server-url/api/generate-template \
+          -H "Content-Type: application/json" \
+          -d '{"peer_name": "peer1", "config_name": "wg0"}'
+        response: |
+          {
+            "peer_name": "peer1",
+            "peer_ip": "192.168.1.2",
+            "data_limit": "1GB",
+            "expiry": "2 months, 5 days",
+            "qr_data": "[Interface]\nPrivateKey = abc123\nAddress = 192.168.1.2/32\nDNS = 8.8.8.8\nMTU = 1280\n\n[Peer]\nPublicKey = xyz456\nAllowedIPs = 0.0.0.0/0, ::/0\nEndpoint = server_ip:51820\nPersistentKeepalive = 25"
+          }
+      - request: |
+          curl -X POST http://your-server-url/api/generate-template \
+          -H "Content-Type: application/json" \
+          -d '{"peer_name": "peer1"}'
+        response: |
+          {
+            "error": "Peer name and config name are required."
+          }
+
+  - endpoint: "/api/delete-template"
+    method: "POST"
+    description: |
+      This endpoint deletes a specified generated template file from the server. 
+      The file is located in the `static/generated` directory, and its name must be provided.
+    request:
+      parameters: None
+      body:
+        - filename: String (The name of the file to delete)
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the specified file was deleted."
+          example: |
+            {
+              "message": "File 'peer1_wg0.conf' deleted successfully."
+            }
+        - code: 400
+          description: "Bad Request - The filename is missing or invalid."
+          example: |
+            {
+              "error": "Filename is required."
+            }
+        - code: 404
+          description: "Not Found - The specified file does not exist."
+          example: |
+            {
+              "error": "File 'peer1_wg0.conf' not found."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while deleting the file."
+          example: |
+            {
+              "error": "Couldn't delete file: <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X POST http://your-server-url/api/delete-template \
+          -H "Content-Type: application/json" \
+          -d '{"filename": "peer1_wg0.conf"}'
+        response: |
+          {
+            "message": "File 'peer1_wg0.conf' deleted successfully."
+          }
+      - request: |
+          curl -X POST http://your-server-url/api/delete-template \
+          -H "Content-Type: application/json" \
+          -d '{"filename": ""}'
+        response: |
+          {
+            "error": "Filename is required."
+          }
+
+api_documentation:
+  - endpoint: "/api/bot-peer-details-fa"
+    method: "GET"
+    description: |
+      This endpoint retrieves the details of a specified Wireguard peer for the Telegram bot in Persian (Farsi). 
+      It fetches the peer's configuration details such as IP, data usage, expiry time, and more, then generates 
+      a Wireguard configuration string along with a human-readable expiry time.
+    request:
+      parameters:
+        - peerName: String (The name of the peer whose details will be fetched)
+        - configName: String (The configuration file name containing the peer details)
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the peer details are returned in Persian."
+          example: |
+            {
+              "peer_name": "peer1",
+              "peer_ip": "192.168.1.2",
+              "qr_code": "[Interface]\nPrivateKey = abc123\nAddress = 192.168.1.2/32\nDNS = 8.8.8.8\nMTU = 1280\n\n[Peer]\nPublicKey = xyz456\nAllowedIPs = 0.0.0.0/0, ::/0\nPersistentKeepalive = 25",
+              "dns": "1.1.1.1",
+              "limit": "1GB",
+              "used": 500MB,
+              "remaining": "500MB",
+              "created_at": "2023-01-01T12:00:00",
+              "expiry": "2023-02-01 12:00:00",
+              "expiry_human": "30 days remaining"
+            }
+        - code: 400
+          description: "Bad Request - Missing peer name or configuration name."
+          example: |
+            {
+              "error": "Peer name is required"
+            }
+        - code: 404
+          description: "Not Found - Peer or configuration file not found."
+          example: |
+            {
+              "error": "Peer 'peer1' not found in 'wg0.conf'."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while fetching the peer details."
+          example: |
+            {
+              "error": "Couldn't fetch peer details"
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/bot-peer-details-fa?peerName=peer1&configName=wg0.conf
+        response: |
+          {
+            "peer_name": "peer1",
+            "peer_ip": "192.168.1.2",
+            "qr_code": "[Interface]\nPrivateKey = abc123\nAddress = 192.168.1.2/32\nDNS = 8.8.8.8\nMTU = 1280\n\n[Peer]\nPublicKey = xyz456\nAllowedIPs = 0.0.0.0/0, ::/0\nPersistentKeepalive = 25",
+            "dns": "1.1.1.1",
+            "limit": "1GB",
+            "used": 500MB,
+            "remaining": "500MB",
+            "created_at": "2023-01-01T12:00:00",
+            "expiry": "2023-02-01 12:00:00",
+            "expiry_human": "30 days remaining"
+          }
+      - request: |
+          curl -X GET http://your-server-url/api/bot-peer-details-fa?peerName=peer1
+        response: |
+          {
+            "error": "Config name is required"
+          }
+
+  - endpoint: "/api/bot-peer-details"
+    method: "GET"
+    description: |
+      This endpoint retrieves the details of a specified Wireguard peer for the Telegram bot. 
+      It returns the peer's configuration details, including IP, data usage, expiry time, and a Wireguard configuration string.
+      The details are returned in English.
+    request:
+      parameters:
+        - peerName: String (The name of the peer whose details will be fetched)
+        - configName: String (The configuration file name containing the peer details)
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the peer details are returned in English."
+          example: |
+            {
+              "peer_name": "peer1",
+              "peer_ip": "192.168.1.2",
+              "qr_code": "[Interface]\nPrivateKey = abc123\nAddress = 192.168.1.2/32\nDNS = 8.8.8.8\nMTU = 1280\n\n[Peer]\nPublicKey = xyz456\nAllowedIPs = 0.0.0.0/0, ::/0\nPersistentKeepalive = 25",
+              "dns": "1.1.1.1",
+              "limit": "1GB",
+              "used": 500MB,
+              "remaining": "500MB",
+              "created_at": "2023-01-01T12:00:00",
+              "expiry": "2023-02-01 12:00:00",
+              "expiry_human": "30 days remaining"
+            }
+        - code: 400
+          description: "Bad Request - Missing peer name or configuration name."
+          example: |
+            {
+              "error": "Peer name is required"
+            }
+        - code: 404
+          description: "Not Found - Peer or configuration file not found."
+          example: |
+            {
+              "error": "Peer 'peer1' not found in 'wg0.conf'."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while fetching the peer details."
+          example: |
+            {
+              "error": "Couldn't fetch peer details"
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/bot-peer-details?peerName=peer1&configName=wg0.conf
+        response: |
+          {
+            "peer_name": "peer1",
+            "peer_ip": "192.168.1.2",
+            "qr_code": "[Interface]\nPrivateKey = abc123\nAddress = 192.168.1.2/32\nDNS = 8.8.8.8\nMTU = 1280\n\n[Peer]\nPublicKey = xyz456\nAllowedIPs = 0.0.0.0/0, ::/0\nPersistentKeepalive = 25",
+            "dns": "1.1.1.1",
+            "limit": "1GB",
+            "used": 500MB,
+            "remaining": "500MB",
+            "created_at": "2023-01-01T12:00:00",
+            "expiry": "2023-02-01 12:00:00",
+            "expiry_human": "30 days remaining"
+          }
+      - request: |
+          curl -X GET http://your-server-url/api/bot-peer-details?peerName=peer1
+        response: |
+          {
+            "error": "Config name is required"
+          }
+
+api_documentation:
+  - endpoint: "/api/block-peer"
+    method: "POST"
+    description: |
+      This endpoint blocks a specified peer by adding a blackhole route to the peer's IP address. 
+      If the peer is already blocked, it returns a success message indicating that the peer is already blocked.
+    request:
+      parameters: None
+      body:
+        - peerName: String (The name of the peer to block)
+        - config: String (Optional, the configuration file name. Default is 'wg0.conf')
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the peer was blocked."
+          example: |
+            {
+              "success": true,
+              "blocked": true,
+              "message": "Peer peer1 in wg0.conf has been blocked."
+            }
+        - code: 400
+          description: "Bad Request - The peer name is missing or invalid."
+          example: |
+            {
+              "error": "Peer name is required."
+            }
+        - code: 404
+          description: "Not Found - The specified peer was not found in the configuration file."
+          example: |
+            {
+              "error": "Peer 'peer1' not found in wg0.conf."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while blocking the peer."
+          example: |
+            {
+              "error": "Couldn't block peer peer1 in wg0.conf."
+            }
+    usage_examples:
+      - request: |
+          curl -X POST http://your-server-url/api/block-peer \
+          -H "Content-Type: application/json" \
+          -d '{"peerName": "peer1", "config": "wg0.conf"}'
+        response: |
+          {
+            "success": true,
+            "blocked": true,
+            "message": "Peer peer1 in wg0.conf has been blocked."
+          }
+      - request: |
+          curl -X POST http://your-server-url/api/block-peer \
+          -H "Content-Type: application/json" \
+          -d '{"peerName": "peer1"}'
+        response: |
+          {
+            "error": "Peer name is required."
+          }
+
+  - endpoint: "/api/unblock-peer"
+    method: "POST"
+    description: |
+      This endpoint unblocks a specified peer by removing the blackhole route from the peer's IP address. 
+      If the peer is not blocked, it returns a success message indicating that the peer is already unblocked.
+    request:
+      parameters: None
+      body:
+        - peerName: String (The name of the peer to unblock)
+        - config: String (Optional, the configuration file name. Default is 'wg0.conf')
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the peer was unblocked."
+          example: |
+            {
+              "success": true,
+              "blocked": false,
+              "message": "Peer peer1 in wg0.conf has been unblocked."
+            }
+        - code: 400
+          description: "Bad Request - The peer name is missing or invalid."
+          example: |
+            {
+              "error": "Peer name is required."
+            }
+        - code: 404
+          description: "Not Found - The specified peer was not found in the configuration file."
+          example: |
+            {
+              "error": "Peer 'peer1' not found in wg0.conf."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while unblocking the peer."
+          example: |
+            {
+              "error": "Couldn't unblock peer peer1 in wg0.conf."
+            }
+    usage_examples:
+      - request: |
+          curl -X POST http://your-server-url/api/unblock-peer \
+          -H "Content-Type: application/json" \
+          -d '{"peerName": "peer1", "config": "wg0.conf"}'
+        response: |
+          {
+            "success": true,
+            "blocked": false,
+            "message": "Peer peer1 in wg0.conf has been unblocked."
+          }
+      - request: |
+          curl -X POST http://your-server-url/api/unblock-peer \
+          -H "Content-Type: application/json" \
+          -d '{"peerName": "peer1"}'
+        response: |
+          {
+            "error": "Peer name is required."
+          }
+api_documentation:
+  - endpoint: "/api/export-peer-qr"
+    method: "GET"
+    description: |
+      This endpoint generates a QR code containing the configuration for a specified Wireguard peer. 
+      The QR code can be scanned by Wireguard clients to automatically configure the peer.
+    request:
+      parameters:
+        - peerName: String (The name of the peer for which the configuration QR code will be generated)
+        - config: String (The configuration file name, example, 'wg0.conf')
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the QR code for the peer configuration is returned."
+          example: |
+            [QR code image file (PNG) for download]
+        - code: 400
+          description: "Bad Request - Missing peer name or configuration."
+          example: |
+            {
+              "error": "Peer name and config are required"
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while generating the QR code."
+          example: |
+            {
+              "error": "Couldn't generate QR code"
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/export-peer-qr?peerName=peer1&config=wg0.conf
+        response: |
+          [QR code image file (PNG) for download]
+      - request: |
+          curl -X GET http://your-server-url/api/export-peer-qr?peerName=peer1
+        response: |
+          {
+            "error": "Config name is required"
+          }
+
+  - endpoint: "/api/export-peer"
+    method: "GET"
+    description: |
+      This endpoint exports the Wireguard configuration file for a specified peer. The configuration is 
+      generated dynamically based on the peer’s details and returned as a `.conf` file.
+    request:
+      parameters:
+        - peerName: String (The name of the peer for which the configuration will be exported)
+        - config: String (The configuration file name, example, 'wg0.conf')
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the peer configuration file is returned."
+          example: |
+            [Wireguard configuration file (.conf) for download]
+        - code: 400
+          description: "Bad Request - The peer name is missing or invalid."
+          example: |
+            {
+              "error": "Peer name is required to export config."
+            }
+        - code: 404
+          description: "Not Found - The specified peer or configuration file was not found."
+          example: |
+            {
+              "error": "Peer 'peer1' not found in wg0.conf."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while generating the configuration file."
+          example: |
+            {
+              "error": "error in creating config file"
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/export-peer?peerName=peer1&config=wg0.conf
+        response: |
+          [Wireguard configuration file (.conf) for download]
+      - request: |
+          curl -X GET http://your-server-url/api/export-peer?peerName=peer1
+        response: |
+          {
+            "error": "Peer name is required to export config."
+          }
+
+api_documentation:
+  - endpoint: "/api/qr-code"
+    method: "GET"
+    description: |
+      This endpoint generates a QR code containing the Wireguard configuration for a specified peer. 
+      The generated QR code is encoded in base64 and returned as a string, which can be used for automatic peer configuration in Wireguard clients.
+    request:
+      parameters:
+        - peerName: String (The name of the peer whose configuration QR code will be generated)
+        - config: String (Optional, the configuration file name. Default is 'wg0.conf')
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the QR code for the peer configuration is returned."
+          example: |
+            {
+              "qr_code": "data:image/png;base64,iVBORw0KGgoAAAANS...<base64_string>"
+            }
+        - code: 400
+          description: "Bad Request - Missing peer name."
+          example: |
+            {
+              "error": "Peer name is required."
+            }
+        - code: 404
+          description: "Not Found - The specified peer or configuration file was not found."
+          example: |
+            {
+              "error": "Peer 'peer1' not found in wg0.conf."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while generating the QR code."
+          example: |
+            {
+              "error": "Couldn't generate QR code"
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/qr-code?peerName=peer1&config=wg0.conf
+        response: |
+          {
+            "qr_code": "data:image/png;base64,iVBORw0KGgoAAAANS...<base64_string>"
+          }
+      - request: |
+          curl -X GET http://your-server-url/api/qr-code?peerName=peer1
+        response: |
+          {
+            "error": "Config name is required"
+          }
+
+  - endpoint: "/api/get-peers"
+    method: "GET"
+    description: |
+      This endpoint retrieves a list of peers based on the specified peer name. 
+      If no peer name is provided, all peers from the configuration file(s) are returned. 
+      The peer data is loaded from a JSON file in the `db` directory.
+    request:
+      parameters:
+        - peer_name: String (The name of the peer to search for)
+        - config_name: String (Optional, the configuration file name. Default is `all_peers.json` in the `db` directory)
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the matched peers are returned."
+          example: |
+            {
+              "peers": [
+                {
+                  "peer_name": "peer1",
+                  "peer_ip": "192.168.1.2",
+                  "limit": "1GB",
+                  "used": "200MB",
+                  "remaining": "800MB"
+                }
+              ]
+            }
+        - code: 400
+          description: "Bad Request - The peer name is missing or invalid."
+          example: |
+            {
+              "error": "Peer name is required."
+            }
+        - code: 404
+          description: "Not Found - The configuration file or matching peers were not found."
+          example: |
+            {
+              "error": "Config file `db/wg0.json` not found."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while reading the peer data."
+          example: |
+            {
+              "error": "error in reading peer data: <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/get-peers?peer_name=peer1&config_name=wg0.conf
+        response: |
+          {
+            "peers": [
+              {
+                "peer_name": "peer1",
+                "peer_ip": "192.168.1.2",
+                "limit": "1GB",
+                "used": "200MB",
+                "remaining": "800MB"
+              }
+            ]
+          }
+      - request: |
+          curl -X GET http://your-server-url/api/get-peers?peer_name=peer1
+        response: |
+          {
+            "peers": [
+              {
+                "peer_name": "peer1",
+                "peer_ip": "192.168.1.2",
+                "limit": "1GB",
+                "used": "200MB",
+                "remaining": "800MB"
+              }
+            ]
+          }
+      - request: |
+          curl -X GET http://your-server-url/api/get-peers?peer_name=peer2
+        response: |
+          {
+            "error": "Config file `db/all_peers.json` not found."
+          }
+api_documentation:
+  - endpoint: "/api/export-peer-telegram"
+    method: "GET"
+    description: |
+      This endpoint generates the configuration for a specified Wireguard peer. 
+      The configuration is returned as a string in plain text format. 
+      It includes the peer's IP, private key, public key, DNS, and other relevant settings.
+    request:
+      parameters:
+        - peerName: String (The name of the peer whose configuration will be exported)
+        - config: String (Optional, the configuration file name. Default is 'wg0.conf')
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the peer configuration is returned."
+          example: |
+            "[Interface]\nPrivateKey = abc123\nAddress = 192.168.1.2/32\nDNS = 1.1.1.1\nMTU = 1280\n\n[Peer]\nPublicKey = xyz456\nEndpoint = server_ip:51820\nAllowedIPs = 0.0.0.0/0, ::/0\nPersistentKeepalive = 25"
+        - code: 400
+          description: "Bad Request - Missing peer name."
+          example: |
+            {
+              "error": "Peer name is required to export config."
+            }
+        - code: 404
+          description: "Not Found - The specified peer was not found."
+          example: |
+            {
+              "error": "Peer 'peer1' not found in wg0.conf."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while generating the peer configuration."
+          example: |
+            {
+              "error": "Internal server error."
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/export-peer-telegram?peerName=peer1&config=wg0.conf
+        response: |
+          "[Interface]\nPrivateKey = abc123\nAddress = 192.168.1.2/32\nDNS = 1.1.1.1\nMTU = 1280\n\n[Peer]\nPublicKey = xyz456\nEndpoint = server_ip:51820\nAllowedIPs = 0.0.0.0/0, ::/0\nPersistentKeepalive = 25"
+      - request: |
+          curl -X GET http://your-server-url/api/export-peer-telegram?peerName=peer1
+        response: |
+          {
+            "error": "Peer name is required to export config."
+          }
+
+  - endpoint: "/api/download-peer-config"
+    method: "GET"
+    description: |
+      This endpoint generates and downloads the configuration file for a specified Wireguard peer. 
+      The peer configuration is returned as a `.conf` file attachment.
+    request:
+      parameters:
+        - peerName: String (The name of the peer whose configuration file will be generated)
+        - config: String (Optional, the configuration file name. Default is 'wg0.conf')
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the peer configuration file is returned as a downloadable .conf file."
+          example: |
+            [Wireguard configuration file (.conf) for download]
+        - code: 400
+          description: "Bad Request - Missing peer name or configuration file."
+          example: |
+            {
+              "error": "Peer name and config file are required"
+            }
+        - code: 404
+          description: "Not Found - The specified peer or configuration file was not found."
+          example: |
+            {
+              "error": "Peer 'peer1' not found in wg0.conf."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while generating the configuration file."
+          example: |
+            {
+              "error": "Internal server error."
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/download-peer-config?peerName=peer1&config=wg0.conf
+        response: |
+          [Wireguard configuration file (.conf) for download]
+      - request: |
+          curl -X GET http://your-server-url/api/download-peer-config?peerName=peer1
+        response: |
+          {
+            "error": "Peer name and config file are required"
+          }
+
+  - endpoint: "/api/download-peer-qr"
+    method: "GET"
+    description: |
+      This endpoint generates a QR code for the Wireguard configuration of a specified peer. 
+      The QR code is returned as a PNG image, which can be scanned by a Wireguard client to automatically configure the peer.
+    request:
+      parameters:
+        - peerName: String (The name of the peer whose QR code will be generated)
+        - config: String (Optional, the configuration file name. Default is 'wg0.conf')
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the QR code image is returned."
+          example: |
+            [QR code image file (PNG) for download]
+        - code: 400
+          description: "Bad Request - Missing peer name or configuration file."
+          example: |
+            {
+              "error": "Peer name and config file are required"
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while generating the QR code."
+          example: |
+            {
+              "error": "Internal server error."
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/download-peer-qr?peerName=peer1&config=wg0.conf
+        response: |
+          [QR code image file (PNG) for download]
+      - request: |
+          curl -X GET http://your-server-url/api/download-peer-qr?peerName=peer1
+        response: |
+          {
+            "error": "Peer name and config file are required"
+          }
+api_documentation:
+  - endpoint: "/api/get-custom-ip"
+    method: "GET"
+    description: |
+      This endpoint retrieves the current custom IP or subdomain used by the server. 
+      If no custom IP is set, the default IP or subdomain is returned.
+    request:
+      parameters: None
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the custom IP is returned."
+          example: |
+            {
+              "custom_ip": "192.168.1.100"
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while retrieving the custom IP."
+          example: |
+            {
+              "error": "error in retrieving custom IP: <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/get-custom-ip
+        response: |
+          {
+            "custom_ip": "192.168.1.100"
+          }
+
+  - endpoint: "/api/update-custom-ip"
+    method: "POST"
+    description: |
+      This endpoint allows the user to update the custom IP or subdomain for the server. 
+      The custom IP or subdomain is passed in the request body, and the server updates it accordingly.
+    request:
+      parameters: None
+      body:
+        - custom_ip: String (The new custom IP or subdomain to set)
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The custom IP or subdomain was updated successfully."
+          example: |
+            {
+              "message": "Custom IP/Subdomain updated successfully"
+            }
+        - code: 400
+          description: "Bad Request - The custom IP or subdomain is missing or invalid."
+          example: |
+            {
+              "error": "Custom IP or Subdomain is required"
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while updating the custom IP."
+          example: |
+            {
+              "error": "error in updating custom IP/Subdomain: <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X POST http://your-server-url/api/update-custom-ip \
+          -H "Content-Type: application/json" \
+          -d '{"custom_ip": "192.168.1.101"}'
+        response: |
+          {
+            "message": "Custom IP/Subdomain updated successfully"
+          }
+      - request: |
+          curl -X POST http://your-server-url/api/update-custom-ip \
+          -H "Content-Type: application/json" \
+          -d '{}'
+        response: |
+          {
+            "error": "Custom IP or Subdomain is required"
+          }
+api_documentation:
+  - endpoint: "/api/config-details"
+    method: "GET"
+    description: |
+      This endpoint retrieves the details of a specified Wireguard configuration file. 
+      It includes information about the configuration such as whether the interface is active, 
+      the address, listen port, DNS, and MTU values.
+    request:
+      parameters:
+        - config: String (The configuration file name. Default is 'wg0.conf')
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the configuration details are returned."
+          example: |
+            {
+              "active": true,
+              "Address": "192.168.1.2",
+              "ListenPort": "51820",
+              "DNS": "1.1.1.1",
+              "MTU": "1280"
+            }
+        - code: 404
+          description: "Not Found - The configuration file does not exist."
+          example: |
+            {
+              "error": "Configuration file wg0.conf does not exist."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while reading the configuration file."
+          example: |
+            {
+              "error": "Couldn't read config file wg0.conf."
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/config-details?config=wg0.conf
+        response: |
+          {
+            "active": true,
+            "Address": "192.168.1.2",
+            "ListenPort": "51820",
+            "DNS": "1.1.1.1",
+            "MTU": "1280"
+          }
+      - request: |
+          curl -X GET http://your-server-url/api/config-details?config=nonexistent.conf
+        response: |
+          {
+            "error": "Configuration file nonexistent.conf does not exist."
+          }
+
+  - endpoint: "/api/toggle-config"
+    method: "POST"
+    description: |
+      This endpoint allows you to toggle (enable or disable) a Wireguard configuration. 
+      It starts or stops the configuration interface based on the provided `active` parameter.
+    request:
+      parameters:
+        - config: String (The configuration file name)
+        - active: Boolean (Whether to enable or disable the configuration. Default is false)
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the configuration interface was toggled."
+          example: |
+            {
+              "message": "Configuration 'wg0.conf' has been enabled.",
+              "active": true,
+              "output": "Configuration output from wg-quick"
+            }
+        - code: 400
+          description: "Bad Request - The configuration file is missing."
+          example: |
+            {
+              "error": "Configuration file is required."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while toggling the configuration."
+          example: |
+            {
+              "error": "Couldn't enable config 'wg0.conf': <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X POST http://your-server-url/api/toggle-config?config=wg0.conf&active=true
+        response: |
+          {
+            "message": "Configuration 'wg0.conf' has been enabled.",
+            "active": true,
+            "output": "Configuration output from wg-quick"
+          }
+      - request: |
+          curl -X POST http://your-server-url/api/toggle-config?config=wg0.conf&active=false
+        response: |
+          {
+            "message": "Configuration 'wg0.conf' has been disabled.",
+            "active": false,
+            "output": "Configuration output from wg-quick"
+          }
+
+  - endpoint: "/api/toggle-peer"
+    method: "POST"
+    description: |
+      This endpoint toggles the state of a specified Wireguard peer. It allows you to enable or disable a peer by blocking or unblocking their IP address. 
+      When disabling a peer, their IP is blocked using a blackhole route; when enabling, the block is removed, and their traffic is reset.
+    request:
+      parameters:
+        - peerName: String (The name of the peer whose state will be toggled)
+        - blocked: Boolean (Whether to block the peer. If false, the peer is enabled; if true, the peer is disabled)
+        - config: String (Optional, the configuration file name. Default is 'wg0.conf')
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the peer was toggled successfully."
+          example: |
+            {
+              "message": "Peer peer1 in wg0.conf has been disabled successfully.",
+              "blocked": true
+            }
+        - code: 400
+          description: "Bad Request - Missing or invalid peer name."
+          example: |
+            {
+              "error": "Peer name is required."
+            }
+        - code: 404
+          description: "Not Found - The specified peer was not found in the configuration file."
+          example: |
+            {
+              "error": "Peer 'peer1' not found in wg0.conf."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while toggling the peer."
+          example: |
+            {
+              "error": "Couldn't toggle peer state."
+            }
+    usage_examples:
+      - request: |
+          curl -X POST http://your-server-url/api/toggle-peer \
+          -H "Content-Type: application/json" \
+          -d '{"peerName": "peer1", "blocked": true, "config": "wg0.conf"}'
+        response: |
+          {
+            "message": "Peer peer1 in wg0.conf has been disabled successfully.",
+            "blocked": true
+          }
+      - request: |
+          curl -X POST http://your-server-url/api/toggle-peer \
+          -H "Content-Type: application/json" \
+          -d '{"peerName": "peer1", "blocked": false}'
+        response: |
+          {
+            "message": "Peer peer1 in wg0.conf has been enabled successfully.",
+            "blocked": false
+          }
+api_documentation:
+  - endpoint: "/api/available-ips"
+    method: "GET"
+    description: |
+      This endpoint retrieves the available IPs for a specified Wireguard configuration. 
+      It extracts the private IP from the configuration file and then calculates the available IPs in the subnet.
+    request:
+      parameters:
+        - config: String (Optional, the configuration file name. Default is 'wg0.conf')
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the list of available IPs is returned."
+          example: |
+            {
+              "availableIps": ["192.168.1.2", "192.168.1.3", "192.168.1.4", ...]
+            }
+        - code: 400
+          description: "Bad Request - Unable to extract the private IP from the configuration file."
+          example: |
+            {
+              "error": "Unable to extract private IP from wg0.conf"
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/available-ips?config=wg0.conf
+        response: |
+          {
+            "availableIps": ["192.168.1.2", "192.168.1.3", "192.168.1.4"]
+          }
+      - request: |
+          curl -X GET http://your-server-url/api/available-ips
+        response: |
+          {
+            "availableIps": ["192.168.1.2", "192.168.1.3", "192.168.1.4"]
+          }
+
+  - endpoint: "/api/generate-keys"
+    method: "GET"
+    description: |
+      This endpoint generates a Wireguard private and public key pair. 
+      The private key is generated using `wg genkey`, and the public key is generated using `wg pubkey` from the private key.
+    request:
+      parameters: None
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the private and public keys are returned."
+          example: |
+            {
+              "privateKey": "private-key-string",
+              "publicKey": "public-key-string"
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while generating the keys."
+          example: |
+            {
+              "error": "error in generating keys: <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/generate-keys
+        response: |
+          {
+            "privateKey": "private-key-string",
+            "publicKey": "public-key-string"
+          }
+
+  - endpoint: "/api/reload-blocked-peers"
+    method: "POST"
+    description: |
+      This endpoint reloads the list of blocked peers. It triggers the process to refresh the blocked peers' data.
+      Upon reboot, it blocks that specific peer based on the json configuration file.
+    request:
+      parameters: None
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the blocked peers were reloaded."
+          example: |
+            {
+              "message": "Blocked peers reloaded successfully."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while reloading blocked peers."
+          example: |
+            {
+              "error": "error message"
+            }
+    usage_examples:
+      - request: |
+          curl -X POST http://your-server-url/api/reload-blocked-peers
+        response: |
+          {
+            "message": "Blocked peers reloaded successfully."
+          }
+
+  - endpoint: "/api/reload-unblocked-peers"
+    method: "POST"
+    description: |
+      This endpoint reloads the list of unblocked peers. It triggers the process to refresh the unblocked peers' data.
+      It unblock the peers that are not blocked in json configuration file.
+    request:
+      parameters: None
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the unblocked peers were reloaded."
+          example: |
+            {
+              "message": "Unblocked peers reloaded successfully."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while reloading unblocked peers."
+          example: |
+            {
+              "error": "error message"
+            }
+    usage_examples:
+      - request: |
+          curl -X POST http://your-server-url/api/reload-unblocked-peers
+        response: |
+          {
+            "message": "Unblocked peers reloaded successfully."
+          }
+
+  - endpoint: "/api/server-ips"
+    method: "GET"
+    description: |
+      This endpoint retrieves the public IPv4 and IPv6 addresses of the server. 
+      The IPv4 address is obtained using the `hostname -I` command, while the IPv6 address is fetched from an external API (`ipify`).
+    request:
+      parameters: None
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the server's public IPv4 and IPv6 addresses are returned."
+          example: |
+            {
+              "public_ipv4": "192.168.1.100",
+              "public_ipv6": "2001:0db8:85a3:0000:0000:8a2e:0370:7334"
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while retrieving the IP addresses."
+          example: |
+            {
+              "error": "error in obtaining server IPs: <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/server-ips
+        response: |
+          {
+            "public_ipv4": "192.168.1.100",
+            "public_ipv6": "2001:0db8:85a3:0000:0000:8a2e:0370:7334"
+          }
+
+  - endpoint: "/api/speed"
+    method: "GET"
+    description: |
+      This endpoint measures the server's upload and download speed by comparing the network I/O counters at two points in time.
+    request:
+      parameters: None
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the upload and download speeds are returned."
+          example: |
+            {
+              "uploadSpeed": 500.2,
+              "downloadSpeed": 1024.5
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while measuring the network speed."
+          example: |
+            {
+              "error": "Internal Server Error"
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/speed
+        response: |
+          {
+            "uploadSpeed": 500.2,
+            "downloadSpeed": 1024.5
+          }
+
+  - endpoint: "/api/logs"
+    method: "GET"
+    description: |
+      This endpoint retrieves logs from the `wireguard.log` file. The number of logs can be specified using the `limit` parameter.
+      The default limit is 20 logs.
+    request:
+      parameters:
+        - limit: Integer (Optional, the number of logs to retrieve. Default is 20.)
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the logs are returned."
+          example: |
+            {
+              "logs": [
+                "Log entry 1",
+                "Log entry 2",
+                "Log entry 3"
+              ]
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while retrieving the logs."
+          example: |
+            {
+              "error": "error in reading logs: <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/logs?limit=5
+        response: |
+          {
+            "logs": [
+              "Log entry 1",
+              "Log entry 2",
+              "Log entry 3",
+              "Log entry 4",
+              "Log entry 5"
+            ]
+          }
+      - request: |
+          curl -X GET http://your-server-url/api/logs
+        response: |
+          {
+            "logs": [
+              "Log entry 1",
+              "Log entry 2",
+              "Log entry 3"
+            ]
+          }
+
+    - method: "DELETE"
+    description: |
+      This endpoint clears all logs in the `wireguard.log` file.
+    request:
+      parameters: None
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The logs were cleared successfully."
+          example: |
+            {
+              "message": "Logs cleared successfully"
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while clearing the logs."
+          example: |
+            {
+              "error": "error in clearing logs: <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X DELETE http://your-server-url/api/logs
+        response: |
+          {
+            "message": "Logs cleared successfully"
+          }
+api_documentation:
+  - endpoint: "/api/create-peer"
+    method: "POST"
+    description: |
+      This endpoint creates a new Wireguard peer. It allows users to specify the peer name, IP address, data limit, expiration time, and other configuration details.
+      The endpoint also supports creating multiple peers in bulk.
+    request:
+      parameters:
+        - peerName: String (The name of the peer to be created)
+        - peerIp: String (The IP address for the new peer)
+        - dataLimit: String (The data limit for the peer, in MiB/GiB)
+        - configFile: String (The configuration file to use for the peer. Default is 'wg0.conf')
+        - dns: String (The DNS settings for the peer. Default is '1.1.1.1, 1.0.0.1')
+        - expiryDays: Integer (The number of days before the peer expires)
+        - expiryMonths: Integer (The number of months before the peer expires)
+        - expiryHours: Integer (The number of hours before the peer expires)
+        - expiryMinutes: Integer (The number of minutes before the peer expires)
+        - bulkCount: Integer (Optional, the number of peers to create in bulk)
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the peer(s) were created."
+          example: |
+            {
+              "message": "Peer created successfully in wg0.conf!",
+              "peer_name": "peer1",
+              "short_link": "http://short-link-for-peer"
+            }
+        - code: 400
+          description: "Bad Request - Invalid peer data or configuration."
+          example: |
+            {
+              "error": "Wrong peer name. Only letters, numbers, underscores, and dashes are allowed."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while creating the peer."
+          example: |
+            {
+              "error": "An error occurred: <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X POST http://your-server-url/api/create-peer \
+          -H "Content-Type: application/json" \
+          -d '{"peerName": "peer1", "peerIp": "192.168.1.2", "dataLimit": "10MiB", "expiryDays": 30}'
+        response: |
+          {
+            "message": "Peer created successfully in wg0.conf!",
+            "peer_name": "peer1",
+            "short_link": "http://short-link-for-peer"
+          }
+
+  - endpoint: "/api/get-peer-link"
+    method: "GET"
+    description: |
+      This endpoint retrieves the short link for a specified Wireguard peer. 
+      The short link allows users to easily share a peer's configuration via a shortened URL.
+    request:
+      parameters:
+        - peerName: String (The name of the peer whose short link is requested)
+        - config: String (The configuration file for the peer)
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the short link for the peer is returned."
+          example: |
+            {
+              "short_link": "http://short-link-for-peer"
+            }
+        - code: 400
+          description: "Bad Request - Missing peer name or configuration file."
+          example: |
+            {
+              "error": "Peer name and config file are required."
+            }
+        - code: 404
+          description: "Not Found - The specified peer or short link was not found."
+          example: |
+            {
+              "error": "Peer 'peer1' not found in wg0.conf."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while retrieving the short link."
+          example: |
+            {
+              "error": "error happened: <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/get-peer-link?peerName=peer1&config=wg0.conf
+        response: |
+          {
+            "short_link": "http://short-link-for-peer"
+          }
+      - request: |
+          curl -X GET http://your-server-url/api/get-peer-link?peerName=nonexistent_peer&config=wg0.conf
+        response: |
+          {
+            "error": "Peer 'nonexistent_peer' not found in wg0.conf."
+          }
+
+  - endpoint: "/api/obt-peer-botdetails"
+    method: "GET"
+    description: |
+      This endpoint retrieves the details of a specified Wireguard peer for bot usage. It includes information such as the peer's usage, data limit, expiry time, and status.
+      The details are returned in a structured format suitable for integration with bot systems.
+    request:
+      parameters:
+        - peer_name: String (The name of the peer whose details are being retrieved)
+        - config_file: String (The Wireguard configuration file name. Default is 'wg0.conf')
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the peer details are returned."
+          example: |
+            {
+              "peer_name": "peer1",
+              "limit": "10GiB",
+              "used": 2,
+              "remaining": 8,
+              "expiry_time": {
+                "months": 1,
+                "days": 30,
+                "hours": 12,
+                "minutes": 45
+              },
+              "status": "active"
+            }
+        - code: 400
+          description: "Bad Request - Missing peer name or configuration file."
+          example: |
+            {
+              "error": "Peer name and config file are required."
+            }
+        - code: 404
+          description: "Not Found - The specified peer was not found in the configuration file."
+          example: |
+            {
+              "error": "Peer with name 'peer1' not found in wg0.conf."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while retrieving the peer details."
+          example: |
+            {
+              "error": "An error occurred while fetching peer details: <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/obt-peer-botdetails?peer_name=peer1&config_file=wg0.conf
+        response: |
+          {
+            "peer_name": "peer1",
+            "limit": "10GiB",
+            "used": 2,
+            "remaining": 8,
+            "expiry_time": {
+              "months": 1,
+              "days": 30,
+              "hours": 12,
+              "minutes": 45
+            },
+            "status": "active"
+          }
+
+  - endpoint: "/api/peer-detailz"
+    method: "GET"
+    description: |
+      This endpoint retrieves detailed information about a specified Wireguard peer. It checks for validity using a token and provides comprehensive details including the peer's data usage, expiry, and status.
+      The peer's details are returned with human readable values for ease of use.
+    request:
+      parameters:
+        - peer_name: String (The name of the peer whose details are being retrieved)
+        - config_file: String (The Wireguard configuration file name)
+        - token: String (The token associated with the peer for validation)
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the peer's details are returned."
+          example: |
+            {
+              "peer_name": "peer1",
+              "limit_human": "10 GiB",
+              "used_human": "2.5 GiB",
+              "remaining_human": "7.5 GiB",
+              "expiry_human": "Expired",
+              "remaining_time": 1440,
+              "remaining_time_human": "1 روز، 0 ساعت، 0 دقیقه",
+              "status": "inactive"
+            }
+        - code: 400
+          description: "Bad Request - Missing peer name, config file, or token."
+          example: |
+            {
+              "error": "Peer name, config file, and token are required."
+            }
+        - code: 404
+          description: "Not Found - The specified peer was not found or the token is invalid."
+          example: |
+            {
+              "error": "Peer 'peer1' not found in wg0.conf."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while retrieving the peer details."
+          example: |
+            {
+              "error": "error occurred while fetching peer details: <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/peer-detailz?peer_name=peer1&config_file=wg0.conf&token=valid_token
+        response: |
+          {
+            "peer_name": "peer1",
+            "limit_human": "10 GiB",
+            "used_human": "2.5 GiB",
+            "remaining_human": "7.5 GiB",
+            "expiry_human": "Expired",
+            "remaining_time": 1440,
+            "remaining_time_human": "1 روز، 0 ساعت، 0 دقیقه",
+            "status": "inactive"
+          }
+      - request: |
+          curl -X GET http://your-server-url/api/peer-detailz?peer_name=peer1&config_file=wg0.conf&token=invalid_token
+        response: |
+          {
+            "error": "Invalid token for this peer."
+          }
+  - endpoint: "/api/delete-peer"
+    method: "POST"
+    description: |
+      This endpoint deletes a specified Wireguard peer, both from the configuration file and from the Wireguard interface.
+      It also removes the peer's associated blackhole route and deletes any related short links.
+    request:
+      parameters:
+        - peerName: String (The name of the peer to delete)
+        - configFile: String (The Wireguard configuration file to update. Must end with '.conf')
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The peer was successfully deleted from the Wireguard configuration."
+          example: |
+            {
+              "success": true,
+              "message": "Peer 'peer1' has been deleted dynamically."
+            }
+        - code: 400
+          description: "Bad Request - Missing or invalid peer name or configuration file."
+          example: |
+            {
+              "error": "Peer name is required."
+            }
+        - code: 404
+          description: "Not Found - The specified peer was not found."
+          example: |
+            {
+              "error": "Peer 'peer1' not found in wg0.conf."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while deleting the peer."
+          example: |
+            {
+              "error": "Couldn't remove peer from Wireguard: <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X POST http://your-server-url/api/delete-peer \
+          -H "Content-Type: application/json" \
+          -d '{"peerName": "peer1", "configFile": "wg0.conf"}'
+        response: |
+          {
+            "success": true,
+            "message": "Peer 'peer1' has been deleted dynamically."
+          }
+
+  - endpoint: "/api/get-peer-info"
+    method: "GET"
+    description: |
+      This endpoint retrieves detailed information about a specific Wireguard peer from the configuration file.
+      The information includes peer name, IP address, usage stats, and other relevant data.
+    request:
+      parameters:
+        - peerName: String (The name of the peer whose information is being requested)
+        - configFile: String (Optional, the Wireguard configuration file. Default is 'wg0.conf')
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The peer information was successfully retrieved."
+          example: |
+            {
+              "peerInfo": {
+                "peer_name": "peer1",
+                "peer_ip": "192.168.1.2",
+                "limit": "10GiB",
+                "used": 2,
+                "remaining": 8,
+                "expiry_time": {
+                  "months": 1,
+                  "days": 30,
+                  "hours": 12,
+                  "minutes": 45
+                },
+                "status": "active"
+              }
+            }
+        - code: 400
+          description: "Bad Request - Missing or invalid peer name or configuration file."
+          example: |
+            {
+              "error": "Peer name is required."
+            }
+        - code: 404
+          description: "Not Found - The specified peer was not found."
+          example: |
+            {
+              "error": "Peer 'peer1' not found in wg0.conf."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while retrieving peer info."
+          example: |
+            {
+              "error": "Couldn't retrieve peer info."
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/get-peer-info?peerName=peer1&configFile=wg0.conf
+        response: |
+          {
+            "peerInfo": {
+              "peer_name": "peer1",
+              "peer_ip": "192.168.1.2",
+              "limit": "10GiB",
+              "used": 2,
+              "remaining": 8,
+              "expiry_time": {
+                "months": 1,
+                "days": 30,
+                "hours": 12,
+                "minutes": 45
+              },
+              "status": "active"
+            }
+          }
+      - request: |
+          curl -X GET http://your-server-url/api/get-peer-info?peerName=peer1&configFile=wg0.conf
+        response: |
+          {
+            "error": "Peer 'peer1' not found in wg0.conf."
+          }
+
+  - endpoint: "/api/peers-by-interface"
+    method: "GET"
+    description: |
+      This endpoint retrieves all the peers for a specific Wireguard interface configuration file.
+      It returns with the list of peers along with their details, such as name, IP, usage, and limits.
+    request:
+      parameters:
+        - interface: String (The Wireguard interface name, example, "wg0.conf")
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the peers are returned."
+          example: |
+            {
+              "peers": [
+                {
+                  "peer_name": "peer1",
+                  "peer_ip": "192.168.1.1",
+                  "used_human": "2 MiB",
+                  "remaining_human": "8 MiB",
+                  "limit_human": "10 MiB"
+                }
+              ]
+            }
+        - code: 400
+          description: "Bad Request - Missing or invalid interface parameter."
+          example: |
+            {
+              "error": "Interface parameter is required."
+            }
+        - code: 404
+          description: "Not Found - No peers found for the specified interface."
+          example: |
+            {
+              "error": "No peers found for interface wg0."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while retrieving the peers."
+          example: |
+            {
+              "error": "An error occurred while fetching peer details: <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/peers-by-interface?interface=wg0.conf
+        response: |
+          {
+            "peers": [
+              {
+                "peer_name": "peer1",
+                "peer_ip": "192.168.1.1",
+                "used_human": "2 MiB",
+                "remaining_human": "8 MiB",
+                "limit_human": "10 MiB"
+              }
+            ]
+          }
+
+  - endpoint: "/api/search-peers"
+    method: "GET"
+    description: |
+      This endpoint allows you to search for peers across multiple Wireguard configuration files.
+      You can filter results by name or IP address and also filter based on whether the peer is active or inactive.
+    request:
+      parameters:
+        - query: String (Search query for peer name or IP address)
+        - filter: String (Optional filter for active or inactive peers. Possible values: 'active', 'inactive')
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the filtered peers are returned."
+          example: |
+            {
+              "peers": [
+                {
+                  "peer_name": "peer1",
+                  "peer_ip": "192.168.1.1",
+                  "used_human": "2 MiB",
+                  "remaining_human": "8 MiB",
+                  "status": "active"
+                }
+              ],
+              "count": 1
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while searching for peers."
+          example: |
+            {
+              "error": "An internal error occurred."
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/search-peers?query=peer1&filter=active
+        response: |
+          {
+            "peers": [
+              {
+                "peer_name": "peer1",
+                "peer_ip": "192.168.1.1",
+                "used_human": "2 MiB",
+                "remaining_human": "8 MiB",
+                "status": "active"
+              }
+            ],
+            "count": 1
+          }
+
+  - endpoint: "/api/peers"
+    method: "GET"
+    description: |
+      This endpoint retrieves a paginated list of peers from a specified Wireguard configuration file.
+      It returns a subset of peers, including their names, IPs, usage stats, and limits.
+    request:
+      parameters:
+        - config: String (The Wireguard configuration file to fetch peers from. Default is 'wg0.conf')
+        - page: Integer (The page number for pagination. Default is 1)
+        - limit: Integer (The number of peers per page. Default is 10)
+        - fetch_all: Boolean (Whether to fetch all peers, bypassing pagination. Default is 'false')
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the peers are returned with pagination details."
+          example: |
+            {
+              "peers": [
+                {
+                  "peer_name": "peer1",
+                  "peer_ip": "192.168.1.1",
+                  "used_human": "2 MiB",
+                  "remaining_human": "8 MiB",
+                  "limit_human": "10 MiB"
+                }
+              ],
+              "total_peers": 100,
+              "total_pages": 10,
+              "current_page": 1
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while retrieving the peers."
+          example: |
+            {
+              "error": "Error in loading peers: <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/peers?config=wg0.conf&page=1&limit=10
+        response: |
+          {
+            "peers": [
+              {
+                "peer_name": "peer1",
+                "peer_ip": "192.168.1.1",
+                "used_human": "2 MiB",
+                "remaining_human": "8 MiB",
+                "limit_human": "10 MiB"
+              }
+            ],
+            "total_peers": 100,
+            "total_pages": 10,
+            "current_page": 1
+          }
+
+  - endpoint: "/api/metrics"
+    method: "GET"
+    description: |
+      This endpoint retrieves system metrics such as CPU usage, RAM usage, disk usage, and uptime. 
+      It is rate-limited to 20 requests per minute.
+    request:
+      parameters: None
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and system metrics are returned."
+          example: |
+            {
+              "cpu": "15%",
+              "ram": "8GB",
+              "disk": {
+                "used": "50GB",
+                "total": "100GB"
+              },
+              "uptime": "45 days"
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while fetching the metrics."
+          example: |
+            {
+              "cpu": "Unavailable",
+              "ram": "Unavailable",
+              "disk": {"used": "N/A", "total": "N/A"},
+              "uptime": "N/A",
+              "error": "Metrics are not available."
+            }
+    rate_limit:
+      limit: "20 per minute"
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/metrics
+        response: |
+          {
+            "cpu": "15%",
+            "ram": "8GB",
+            "disk": {
+              "used": "50GB",
+              "total": "100GB"
+            },
+            "uptime": "45 days"
+          }
+
+  - endpoint: "/api/edit-peer"
+    method: "POST"
+    description: |
+      This endpoint allows the editing of an existing Wireguard peer's configuration, including data limit, DNS, and expiry time.
+      The peer's information will be updated based on the input data. It is rate-limited to 20 requests per minute.
+    request:
+      parameters:
+        - peerName: String (The name of the peer to be edited)
+        - configFile: String (The Wireguard configuration file. Must end with '.conf')
+        - dataLimit: String (Optional, the new data limit for the peer, example, "10GiB" or "500MiB")
+        - dns: String (Optional, the new DNS settings for the peer)
+        - expiryMonths: Integer (Optional, the number of months before the peer expires)
+        - expiryDays: Integer (Optional, the number of days before the peer expires)
+        - expiryHours: Integer (Optional, the number of hours before the peer expires)
+        - expiryMinutes: Integer (Optional, the number of minutes before the peer expires)
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The peer was successfully updated."
+          example: |
+            {
+              "message": "Peer updated successfully",
+              "peer": {
+                "peer_name": "peer1",
+                "limit": "10GiB",
+                "remaining": 8,
+                "used": 2,
+                "dns": "1.1.1.1",
+                "expiry_time": {
+                  "months": 1,
+                  "days": 30,
+                  "hours": 12,
+                  "minutes": 45
+                }
+              }
+            }
+        - code: 400
+          description: "Bad Request - Invalid data provided, such as incorrect peer name or config file."
+          example: |
+            {
+              "error": "Wrong data limit. Must be a number followed by MiB or GiB."
+            }
+        - code: 404
+          description: "Not Found - The specified peer or config file does not exist."
+          example: |
+            {
+              "error": "Peer peer1 not found in wg0.conf."
+            }
+        - code: 500
+          description: "Internal Server Error - error occurred while editing the peer."
+          example: |
+            {
+              "error": "Couldn't update peer: <error message>"
+            }
+    rate_limit:
+      limit: "20 per minute"
+    usage_examples:
+      - request: |
+          curl -X POST http://your-server-url/api/edit-peer \
+          -H "Content-Type: application/json" \
+          -d '{"peerName": "peer1", "configFile": "wg0.conf", "dataLimit": "10GiB", "expiryDays": 30}'
+        response: |
+          {
+            "message": "Peer updated successfully",
+            "peer": {
+              "peer_name": "peer1",
+              "limit": "10GiB",
+              "remaining": 8,
+              "used": 2,
+              "dns": "1.1.1.1",
+              "expiry_time": {
+                "months": 1,
+                "days": 30,
+                "hours": 12,
+                "minutes": 45
+              }
+            }
+          }
+      - request: |
+          curl -X POST http://your-server-url/api/edit-peer \
+          -H "Content-Type: application/json" \
+          -d '{"peerName": "peer1", "configFile": "wg0.conf", "dataLimit": "invalidData"}'
+        response: |
+          {
+            "error": "Wrong data limit. Must be a number followed by MiB or GiB."
+          }
+
+  - endpoint: "/api/wireguard-details"
+    method: "GET"
+    description: |
+      This endpoint retrieves detailed information about a specific Wireguard interface, including its status (active or inactive), system uptime, IP address, DNS, and Wireguard keys (private and public).
+      The information is fetched from the Wireguard configuration file and the system.
+    request:
+      parameters:
+        - config: String (The Wireguard configuration file name. Default is 'wg0.conf')
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and Wireguard interface details are returned."
+          example: |
+            {
+              "interface": "wg0",
+              "active": true,
+              "uptime": "45 days, 3 hours, 20 minutes",
+              "private_key": "N/A",
+              "public_key": "N/A",
+              "ip": "10.0.0.1",
+              "port": "51820",
+              "dns": "1.1.1.1"
+            }
+        - code: 400
+          description: "Bad Request - Invalid configuration file or interface name."
+          example: |
+            {
+              "error": "Invalid Wireguard configuration file."
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while retrieving the Wireguard details."
+          example: |
+            {
+              "error": "Couldn't retrieve Wireguard details: <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/wireguard-details?config=wg0.conf
+        response: |
+          {
+            "interface": "wg0",
+            "active": true,
+            "uptime": "45 days, 3 hours, 20 minutes",
+            "private_key": "N/A",
+            "public_key": "N/A",
+            "ip": "10.0.0.1",
+            "port": "51820",
+            "dns": "1.1.1.1"
+          }
+
+  - endpoint: "/api/get-interfaces"
+    method: "GET"
+    description: |
+      This endpoint retrieves a list of available Wireguard interfaces by scanning the `/etc/wireguard` directory for `.conf` files.
+      The returned list contains the names of the interfaces without the `.conf` extension.
+    request:
+      parameters: None
+      authentication: None
+    response:
+      status_codes:
+        - code: 200
+          description: "OK - The request was successful, and the list of Wireguard interfaces is returned."
+          example: |
+            {
+              "interfaces": ["wg0", "wg1", "wg2"]
+            }
+        - code: 500
+          description: "Internal Server Error - An error occurred while fetching the interfaces."
+          example: |
+            {
+              "error": "Couldn't fetch interfaces: <error message>"
+            }
+    usage_examples:
+      - request: |
+          curl -X GET http://your-server-url/api/get-interfaces
+        response: |
+          {
+            "interfaces": ["wg0", "wg1", "wg2"]
+          }
