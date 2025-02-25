@@ -12,6 +12,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.jobstores.base import JobLookupError
 from apscheduler.jobstores.base import ConflictingIdError
+from auth_api import require_api_key
 import threading
 from warp import install_fullwarp, install_progress
 from threading import Thread
@@ -196,6 +197,7 @@ def set_language():
 
 
 @app.route('/api/login', methods=['POST'])
+@require_api_key
 def api_login():
     try:
         data = request.json
@@ -231,12 +233,14 @@ def api_login():
 
 
 @app.route('/api/logout', methods=['POST'])
+@require_api_key
 def api_logout():
     session.clear()
     return jsonify({"message": "Logged out successfully!"}), 200
 
 
 @app.route('/api/wireguard-interfaces', methods=['GET'])
+@require_api_key
 def obtain_wireguard_interfaces():
 
     try:
@@ -333,6 +337,7 @@ edit_peer_schema = {
 
 
 @app.route("/api/health", methods=["GET"])
+@require_api_key
 def health_check():
     return jsonify({"status": "running"}), 200
 
@@ -799,6 +804,7 @@ def create_automated_backup():
 
 
 @app.route("/api/backup-status", methods=["GET"])
+@require_api_key
 def check_backup_status():
     global new_backup_created
     if new_backup_created:
@@ -849,6 +855,7 @@ def save_users(users):
         json.dump(users, file, indent=4)
 
 @app.route('/api/stuff', methods=['GET'])
+@require_api_key
 def track_statuses():
     def check_xray_status():
         try:
@@ -878,6 +885,7 @@ def track_statuses():
 
 
 @app.route("/api/web-config", methods=["GET"])
+@require_api_key
 def obtain_web_config():
     try:
         print("Returning web config:", config["flask"])  
@@ -1019,6 +1027,7 @@ def settings():
 
 
 @app.route('/api/flask-config', methods=['GET'])
+@require_api_key
 def obtain_flask_config():
     try:
         base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -1042,6 +1051,7 @@ def obtain_flask_config():
 
 
 @app.route("/api/update-flask-config", methods=["POST"])
+@require_api_key
 def update_flask_config():
     try:
         base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -1119,6 +1129,7 @@ def update_flask_config():
 
 
 @app.route('/api/update-user', methods=['POST'])
+@require_api_key
 def update_user():
 
     if 'username' not in session:
@@ -1159,6 +1170,7 @@ def update_user():
 
 
 @app.route('/api/update-wireguard-config', methods=['POST'])
+@require_api_key
 def update_wireguard_config():
     data = request.json
     config_name = data.get('config')
@@ -1204,6 +1216,7 @@ def update_wireguard_config():
 
 
 @app.route('/api/user-info', methods=['GET'])
+@require_api_key
 def obtain_user_info():
     try:
         current_user = session.get('username')
@@ -1214,6 +1227,7 @@ def obtain_user_info():
         return jsonify({"error": f"Couldn't load user info: {e}"}), 500
 
 @app.route("/api/backups", methods=["GET"])
+@require_api_key
 def list_manual_backups():
     try:
         os.makedirs(BACKUP_DIR, exist_ok=True)
@@ -1228,6 +1242,7 @@ def list_manual_backups():
    
 
 @app.route("/api/create-backup", methods=["POST"])
+@require_api_key
 def create_backup():
     try:
         backup_name = f"manual_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.backup.zip"
@@ -1264,6 +1279,7 @@ def create_backup():
 
     
 @app.route("/api/restore-automated-backup", methods=["POST"])
+@require_api_key
 def restore_auto_backup():
     try:
         data = request.json
@@ -1295,6 +1311,7 @@ def restore_auto_backup():
 
 
 @app.route("/api/delete-backup", methods=["DELETE"])
+@require_api_key
 def delete_backup():
     try:
         backup_name = request.args.get("name")
@@ -1326,6 +1343,7 @@ def delete_backup():
         return jsonify(error=f"Couldn't delete backup: {e}"), 500
 
 @app.route("/api/restore-backup", methods=["POST"])
+@require_api_key
 def restore_backup():
     try:
         data = request.json
@@ -1387,6 +1405,7 @@ def restore_backup():
         return jsonify(error=f"Couldn't restore backup: {e}"), 500
 
 @app.route("/api/auto-backups", methods=["GET"])
+@require_api_key
 def list_auto_backups():
     folder = request.args.get("folder")
     if folder not in ["wireguard", "db"]:
@@ -1421,6 +1440,7 @@ def backups_page():
 
 
 @app.route("/api/download-backup", methods=["GET"])
+@require_api_key
 def download_backup():
     backup_name = request.args.get("name")
     if not backup_name:
@@ -1437,6 +1457,7 @@ def download_backup():
 
     
 @app.route("/api/restore-automated-backup", methods=["POST"])
+@require_api_key
 def restore_automated_backup():
     try:
         data = request.json
@@ -1623,6 +1644,7 @@ def valid_private_key(key: str) -> bool:
         return False
 
 @app.route('/api/interface-status', methods=['GET'])
+@require_api_key
 def interface_status():
     try:
         wg_path = "wg"  
@@ -1657,6 +1679,7 @@ def sanitize_input(input_value: str):
         raise ValueError(f"Wrong input: {input_value}")
 
 @app.route('/api/toggle-interface', methods=['POST'])
+@require_api_key
 def toggle_interface():
     action = request.args.get('action')
     config_file = request.args.get('config', 'wg0.conf')
@@ -1940,6 +1963,7 @@ def save_peers_with_lock(config_name, peers_data):
         print(f"ERROR: Couldn't save peers to {peers_file}: {e}")
 
 @app.route("/api/reset-traffic", methods=["POST"])
+@require_api_key
 def reset_traffic():
     try:
         data = request.json
@@ -1979,6 +2003,7 @@ def reset_traffic():
 
 
 @app.route("/api/reset-expiry", methods=["POST"])
+@require_api_key
 def reset_expiry():
     try:
         data = request.json
@@ -2140,6 +2165,7 @@ def convert_to_bytes(limit):
         return 0
 
 @app.route('/api/generate-template', methods=['POST'])
+@require_api_key
 def generate_template():
     try:
         data = request.json
@@ -2210,6 +2236,7 @@ PersistentKeepalive = {persistent_keepalive}
 
 
 @app.route('/api/delete-template', methods=['POST'])
+@require_api_key
 def delete_template():
 
     try:
@@ -2232,6 +2259,7 @@ def delete_template():
 
 
 @app.route('/api/bot-peer-details-fa', methods=['GET'])
+@require_api_key
 def get_peer_details_for_bot_fa():
     peer_name = request.args.get('peerName')
     config_name = request.args.get('configName')
@@ -2307,6 +2335,7 @@ def get_peer_details_for_bot_fa():
 
 
 @app.route('/api/bot-peer-details', methods=['GET'])
+@require_api_key
 def get_peer_details_for_bot():
     peer_name = request.args.get('peerName')
     config_name = request.args.get('configName')
@@ -2381,6 +2410,7 @@ def get_peer_details_for_bot():
         return jsonify({"error": "Couldn't fetch peer details"}), 500
     
 @app.route("/api/block-peer", methods=["POST"])
+@require_api_key
 def block_peer():
     try:
         data = request.json
@@ -2424,6 +2454,7 @@ def block_peer():
 
 
 @app.route("/api/unblock-peer", methods=["POST"])
+@require_api_key
 def unblock_peer():
     try:
         data = request.json
@@ -2561,6 +2592,7 @@ except Exception as e:
     print(f"Error: {e}")
 
 @app.route('/api/export-peer-qr', methods=['GET'])
+@require_api_key
 def export_peer_qr():
     peer_name = request.args.get('peerName')
     config = request.args.get('config')
@@ -2585,6 +2617,7 @@ def export_peer_qr():
     return send_file(img_io, mimetype="image/png", as_attachment=False, download_name=f"{peer_name}.png")
 
 @app.route("/api/export-peer", methods=["GET"])
+@require_api_key
 def export_peer():
     peer_name = request.args.get("peerName")
     config_file = request.args.get("config", "wg0.conf") 
@@ -2652,6 +2685,7 @@ def export_peer():
 
 
 @app.route("/api/qr-code", methods=["GET"])
+@require_api_key
 def generate_qr_code():
     peer_name = request.args.get("peerName")
     config_file = request.args.get("config", "wg0.conf") 
@@ -2713,6 +2747,7 @@ def generate_qr_code():
     return jsonify(qr_code=f"data:image/png;base64,{img_str}")
 
 @app.route('/api/get-peers', methods=['GET'])
+@require_api_key
 def get_peers():
     peer_name = request.args.get("peer_name")
     config_name = request.args.get("config_name")  
@@ -2737,6 +2772,7 @@ def get_peers():
 
 
 @app.route("/api/export-peer-telegram", methods=["GET"])
+@require_api_key
 def export_peer_telegram(peer_name, config_file="wg0.conf"):
     try:
         if not peer_name:
@@ -2781,6 +2817,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 @app.route("/api/download-peer-config", methods=["GET"])
+@require_api_key
 def download_peer_config():
     try:
         peer_name = request.args.get("peerName")
@@ -2804,6 +2841,7 @@ def download_peer_config():
 
 
 @app.route("/api/download-peer-qr", methods=["GET"])
+@require_api_key
 def download_peer_qr():
     try:
         peer_name = request.args.get("peerName")
@@ -2866,6 +2904,7 @@ def custom_ip_or_default():
     return obtain_server_public_ip()  
 
 @app.route("/api/get-custom-ip", methods=["GET"])
+@require_api_key
 def custom_ip_endpoint():
     try:
         ip = custom_ip_or_default()
@@ -2874,6 +2913,7 @@ def custom_ip_endpoint():
         return jsonify(error=f"error in retrieving custom IP: {str(e)}"), 500
 
 @app.route("/api/update-custom-ip", methods=["POST"])
+@require_api_key
 def update_custom_ip():
     data = request.get_json()
     custom_ip = data.get("custom_ip")
@@ -3013,6 +3053,7 @@ def calculate_available_ips(private_ip):
 
 
 @app.route("/api/configs", methods=["GET"])
+@require_api_key
 def wg_configs():
     try:
         configs = [f for f in os.listdir(WIREGUARD_CONFIG_DIR) if f.endswith(".conf")]
@@ -3028,6 +3069,7 @@ def sanitize_interface_name(interface_name: str):
         raise ValueError(f"Wrong interface name: {interface_name}")
 
 @app.route("/api/config-details", methods=["GET"])
+@require_api_key
 def wg_config_details():
     config_file = request.args.get("config", "wg0.conf")
     config_path = os.path.join(WIREGUARD_CONFIG_DIR, config_file)
@@ -3077,6 +3119,7 @@ def wg_config_details():
         return jsonify(error=f"Couldn't read config file {config_file}. {str(e)}"), 500
 
 @app.route("/api/toggle-config", methods=["POST"])
+@require_api_key
 def toggle_config():
     config_file = request.args.get("config")
     if not config_file:
@@ -3133,6 +3176,7 @@ def toggle_config():
 
     
 @app.route("/api/toggle-peer", methods=["POST"])
+@require_api_key
 def toggle_peer():
     try:
         data = request.json
@@ -3197,6 +3241,7 @@ def toggle_peer():
 
 
 @app.route("/api/available-ips", methods=["GET"])
+@require_api_key
 def track_available_ips():
     config_file = request.args.get("config", "wg0.conf")
     
@@ -3210,6 +3255,7 @@ def track_available_ips():
     return jsonify(availableIps=available_ips[:100])
 
 @app.route("/api/generate-keys", methods=["GET"])
+@require_api_key
 def generate_keys():
     try:
         wg_path = "wg" 
@@ -3299,6 +3345,7 @@ def reload_unblocked_peers():
         print(f"error in reloading unblocked peers: {e}")
 
 @app.route('/api/reload-blocked-peers', methods=['POST'])
+@require_api_key
 def api_reload_blocked_peers():
     try:
         reload_blocked_peers()
@@ -3307,6 +3354,7 @@ def api_reload_blocked_peers():
         return jsonify({"error": str(e)}), 500
     
 @app.route('/api/reload-unblocked-peers', methods=['POST'])
+@require_api_key
 def api_reload_unblocked_peers():
     try:
         reload_unblocked_peers()
@@ -3697,6 +3745,7 @@ def uninstall_xray():
 
 
 @app.route('/api/server-ips', methods=['GET'])
+@require_api_key
 def obtain_server_ips():
     try:
         ipv4 = None
@@ -3735,6 +3784,7 @@ def obtain_server_ips():
     
 
 @app.route('/api/speed', methods=['GET'])
+@require_api_key
 def obtain_speed():
     try:
         initial_counters = psutil.net_io_counters()
@@ -3758,6 +3808,7 @@ def obtain_speed():
 
     
 @app.route('/api/logs', methods=['GET', 'DELETE'])
+@require_api_key
 def manage_logs():
     log_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'wireguard.log')
 
@@ -3825,6 +3876,7 @@ def save_short_links(short_links):
         json.dump(short_links, file, indent=4)
 
 @app.route("/api/create-peer", methods=["POST"])
+@require_api_key
 def create_peer():
     try:
         data = request.json
@@ -4083,6 +4135,7 @@ def create_peer():
 
 
 @app.route("/api/get-peer-link", methods=["GET"])
+@require_api_key
 def get_peer_short_link():
     peer_name = request.args.get("peerName")
     config_file = request.args.get("config")
@@ -4146,6 +4199,7 @@ def peer_details():
     )
 
 @app.route("/api/obt-peer-botdetails", methods=["GET"])
+@require_api_key
 def obt_peerbot_details():
     peer_name = request.args.get("peer_name")
     config_file = request.args.get("config_file")
@@ -4179,6 +4233,7 @@ def obt_peerbot_details():
 
 
 @app.route('/api/peer-detailz', methods=['GET'])
+@require_api_key
 def api_peer_details():
     peer_name = request.args.get('peer_name')  
     config_file = request.args.get('config_file')  
@@ -4314,6 +4369,7 @@ def sanitize_public_key(public_key: str):
 short_links_lock = threading.Lock()
 
 @app.route("/api/delete-peer", methods=["POST"])
+@require_api_key
 def delete_peer():
     try:
         data = request.json
@@ -4412,6 +4468,7 @@ def delete_peer():
 
 
 @app.route("/api/delete-all-configs", methods=["POST"])
+@require_api_key
 def delete_all_configs():
     try:
         data = request.json
@@ -4459,6 +4516,7 @@ def delete_all_configs():
 
 
 @app.route("/api/get-peer-info", methods=["GET"])
+@require_api_key
 def get_peer_info():
 
     try:
@@ -4579,6 +4637,7 @@ def parse_traffic(peer_ip, public_key):
 
 
 @app.route("/api/peers-by-interface", methods=["GET"])
+@require_api_key
 def obtain_peers_interface():
     interface = request.args.get("interface")
 
@@ -4635,6 +4694,7 @@ def parse_limit_to_bytes(limit_str):
 
 
 @app.route('/api/search-peers', methods=['GET'])
+@require_api_key
 def search_peers():
     try:
         query = request.args.get('query', '').strip().lower()
@@ -4700,6 +4760,7 @@ def search_peers():
 
 
 @app.route("/api/peers", methods=["GET"])
+@require_api_key
 def obtain_peers():
     config_file = request.args.get("config", "wg0.conf")
     page = int(request.args.get("page", 1))  
@@ -4747,6 +4808,7 @@ def obtain_peers():
 
 
 @app.route("/api/metrics", methods=["GET"])
+@require_api_key
 @limiter.limit("20 per minute")
 def obtain_metrics():
 
@@ -4771,6 +4833,7 @@ def obtain_metrics():
 
 
 @app.route("/api/edit-peer", methods=["POST"])
+@require_api_key
 @limiter.limit("20 per minute")
 @validate_json(schema=edit_peer_schema)
 def edit_peer():
@@ -4846,6 +4909,7 @@ def edit_peer():
 
 
 @app.route("/api/wireguard-details", methods=["GET"])
+@require_api_key
 def wireguard_details():
     config_file = request.args.get("config", "wg0.conf")
     
@@ -4897,6 +4961,7 @@ def wireguard_details():
         return jsonify(error=f"Couldn't retrieve Wireguard details: {str(e)}"), 500
 
 @app.route("/api/get-interfaces", methods=["GET"])
+@require_api_key
 def obt_interfaces():
     try:
         interfaces = [f for f in os.listdir("/etc/wireguard") if f.endswith(".conf")]
@@ -5040,6 +5105,7 @@ def clean_invalid_jobs(scheduler):
 GEO_PATH = "/usr/local/etc/xray/config.json"
 
 @app.route('/api/get-active-geosites', methods=['GET'])
+@require_api_key
 def get_active_geosites():
     try:
         with open(GEO_PATH, 'r') as config_file:
@@ -5055,6 +5121,7 @@ def get_active_geosites():
         return jsonify({"error": str(e)}), 500
     
 @app.route("/api/track-usage", methods=["POST"])
+@require_api_key
 def handle_track_usage():
     data = request.get_json()
     peer_ip = data.get("peerIp")

@@ -454,8 +454,8 @@ sudo apt update && sudo apt install -y curl && apt install git -y && curl -fsSL 
 ```
 sudo apt update && sudo apt install git -y
 cd /usr/local/bin
-sudo git clone https://github.com/Azumi67/Wireguard-panel.git
-cd /usr/local/bin/Wireguard-panel
+sudo git clone https://github.com/hosseinpv1379/Wireguard-panel-api.git
+cd /usr/local/bin/Wireguard-panel-api
 
 sudo apt install -y python3 python3-pip python3-venv git redis nftables iptables wireguard-tools iproute2 \
     fonts-dejavu certbot curl software-properties-common wget
